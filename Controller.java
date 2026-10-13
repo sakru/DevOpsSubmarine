@@ -1,10 +1,10 @@
 /**
- * Controller: reads console key input and turns it into game actions.
+ * Controller: reads console key input.
  *
  * Keys:
  *   w  - decrease depth (sub goes up)
  *   s  - increase depth (sub goes down)
- *   q  - quit game
+ *   0 - quit game
  */
 import java.io.IOException;
 

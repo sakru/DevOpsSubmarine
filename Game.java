@@ -4,6 +4,7 @@ public class Game {
     public static final int FIELD_W = 80;
     public static final int FIELD_H = 24;
     public static final int MAX_DEPTH = 10;
+    public static final int SUB_COL = 10;
 
     private int depth = 5;
     private int hull = 100;

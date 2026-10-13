@@ -1,8 +1,5 @@
 /**
  * Renderers game to the console.
- *
- * Renders the field (water, sea floor, submarine art) and the HUD (hull, depth, level).
- * Reads state from Game only — never mutates it.
  */
 import java.util.Arrays;
 
