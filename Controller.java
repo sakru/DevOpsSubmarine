@@ -10,9 +10,9 @@ import java.io.IOException;
 
 public class Controller {
 
-    private final GameLoop game;
+    private final Game game;
 
-    public Controller(GameLoop game) {
+    public Controller(Game game) {
         this.game = game;
     }
 
