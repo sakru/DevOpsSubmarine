@@ -1,6 +1,8 @@
 /**
  * Renderers game to the console.
- * TO FIX: UPDATE CLI
+ * TO FIX: Main call clearScreen. And the output contains exactly one escape sequence / Fel
+ * 
+ * 
  */
 import java.util.Arrays;
 
