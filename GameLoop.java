@@ -1,84 +1,103 @@
+/**
+ * GameLoop: main game loop and console renderer.
+ */
+import java.util.Arrays;
+
 public class GameLoop {
+
+    private static final String[] SUBMARINE = {
+        "                 ____                   ",
+        "              ___/  \\___                ",
+        "    ________/            \\__________    ",
+        "/      .   .   DEVOPS MK1   .   .      \\",
+        "<______________________________________>"
+    };
+
+    private static final int FIELD_W = 80;
+    private static final int FIELD_H = 24;
+    private static final int SUB_COL = 10;
+
+    private final Controller controller;
+
     private boolean running = true;
-    private int depth = 5;   // submarine depth 0-10
-    private int level = 1;    // sea floor level 1-max (floor occupies bottom 'level' rows)
-    
+    private int depth = 5;
+    private int level = 1;
+
+    public GameLoop() {
+        controller = new Controller(this);
+    }
+
     public void start() {
         while (running) {
-            handleInput();
+            controller.poll();
             updateGameLogic();
             clearScreen();
             drawUI();
             pauseForFrame();
         }
     }
-    
-    private void handleInput() {
-        // TODO: read key (W/S for depth, arrows for direction)
-        // Update submarine depth (0-10). Clamp to [0,10]
-    }
-    
+
     private void updateGameLogic() {
-        // TODO: update position of submarine, sea floor level, enemy positions
-        // Empty for now — implemented as needed
     }
-    
+
     private void clearScreen() {
-        // Use ANSI escape to clear console (works in most modern consoles)
-        System.out.print("\u000c");
+        System.out.print("\033[H\033[2J");
     }
-    
+
     private void drawUI() {
-        // Draw simple ASCII scene:
-        // - Field height = 20 rows, width = 10 chars per row
-        // - Water above floor = '~'
-        // - Floor = '#' (bottom 'level' rows)
-        // - Submarine = '🛥️' at row = 20 - depth (depth 0 → row 20 (surface), depth 10 → row 10 (bottom))
-        // - HUD: "Hull: 100%" at top
-        // - Status: "Depth: d/10  Level: l" at bottom
-        
-        int fieldHeight = 20;
-        int fieldWidth = 10;
-        int floorStartRow = fieldHeight - level + 1; // 1-based row where floor starts
-        int subRow = fieldHeight - depth;             // 1-based row for submarine (depth 0 → row 20, depth 10 → row 10)
-        
-        // HUD line
+        int anchorRow = 3 + depth * (FIELD_H - 6) / 10;
+        int floorStart = FIELD_H - level + 1;
+
         System.out.println("Hull: 100%");
-        
-        // Field rows 1 to fieldHeight
-        for (int row = 1; row <= fieldHeight; row++) {
-            if (row < floorStartRow) {
-                // Water above floor
-                System.out.print("          "); // 10 spaces as placeholder
-                System.out.println();
-            } else if (row >= floorStartRow) {
-                // Floor or submarine row
-                if (row == subRow) {
-                    // Submarine row: place '🛥️' centered in 10 chars
-                    System.out.print("       🛥️   "); // 10 chars: 4 spaces, '🛥️', 5 spaces
-                } else {
-                    // Floor row: all '#'
-                    System.out.print("###########"); // 10 '#'
-                }
-                System.out.println();
+        System.out.println(border());
+        for (int row = 1; row <= FIELD_H; row++) {
+            char[] line = new char[FIELD_W];
+            Arrays.fill(line, ' ');
+            if (row >= floorStart) {
+                Arrays.fill(line, '#');
             }
+            drawSubOnLine(line, row, anchorRow);
+            System.out.println("|" + new String(line) + "|");
         }
-        
-        // Status bar (bottom)
+        System.out.println(border());
         System.out.println("Depth: " + depth + "/10  Level: " + level);
     }
-    
+
+    private void drawSubOnLine(char[] line, int row, int anchorRow) {
+        for (int i = 0; i < SUBMARINE.length; i++) {
+            if (row != anchorRow - 2 + i) continue;
+            String artLine = SUBMARINE[i];
+            for (int c = 0; c < artLine.length(); c++) {
+                int col = SUB_COL - 1 + c;
+                if (col >= 0 && col < line.length) {
+                    line[col] = artLine.charAt(c);
+                }
+            }
+        }
+    }
+
+    private String border() {
+        StringBuilder sb = new StringBuilder("+");
+        for (int i = 0; i < FIELD_W; i++) sb.append('-');
+        return sb.append('+').toString();
+    }
+
     private void pauseForFrame() {
-        // Wait ~40–50 ms for ~20–25 FPS
-        // Use Thread.sleep(40) — fixed frame rate
         try {
             Thread.sleep(40);
         } catch (InterruptedException e) {
             running = false;
         }
     }
-    
-    // Method to stop cleanly (e.g., on Ctrl+C)
+
+    public void setDepth(int depth) {
+        this.depth = Math.max(0, Math.min(10, depth));
+    }
+
+    public int getDepth() {
+        return depth;
+    }
+
     public void stop() {
         running = false;
     }
