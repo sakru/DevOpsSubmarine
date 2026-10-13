@@ -19,6 +19,17 @@ public class Game {
     private final ArrayList<Projectile> projectiles = new ArrayList<>();
     private final ArrayList<Explosion> explosions = new ArrayList<>();
 
+    private SeaFloor floor = new SeaFloor(level);
+
+    public SeaFloor getFloor() {
+        return floor;
+    }
+
+    public void setLevel(int level) {
+        this.level = level;
+        floor = new SeaFloor(level);
+    }
+
     public void update() {
         for (Enemy e : enemies) {
             e.update(this);
@@ -33,9 +44,8 @@ public class Game {
         checkCollisions();
     }
 
-    /** Skeleton: projectile vs sub, explosion damage to sub. */
     private void checkCollisions() {
-        int subRow = 3 + depth * (FIELD_H - 6) / MAX_DEPTH;
+        int subRow = subRow();
         for (Projectile p : projectiles) {
             if (p.isAlive() && p.getX() == SUB_COL && Math.abs(p.getY() - subRow) <= 2) {
                 hull -= Weapons.TORPEDO_DAMAGE;
@@ -78,7 +88,16 @@ public class Game {
     }
 
     public void setDepth(int depth) {
-        this.depth = Math.max(0, Math.min(MAX_DEPTH, depth));
+        int maxByFloor = rowToDepth(floor.heightAt(SUB_COL) - 3);
+        this.depth = Math.max(0, Math.min(MAX_DEPTH, Math.min(maxByFloor, depth)));
+    }
+
+    public int subRow() {
+        return 3 + depth * (FIELD_H - 6) / MAX_DEPTH;
+    }
+
+    public int rowToDepth(int row) {
+        return (row - 3) * MAX_DEPTH / (FIELD_H - 6);
     }
 
     public int getDepth() {

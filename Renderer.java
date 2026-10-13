@@ -24,16 +24,18 @@ public class Renderer {
     }
 
     public void draw() {
-        int anchorRow = 3 + game.getDepth() * (Game.FIELD_H - 6) / Game.MAX_DEPTH;
-        int floorStart = Game.FIELD_H - game.getLevel() + 1;
+        int anchorRow = game.subRow();
+        SeaFloor floor = game.getFloor();
 
         System.out.println("Hull: " + game.getHull() + "%");
         System.out.println(border());
         for (int row = 1; row <= Game.FIELD_H; row++) {
             char[] line = new char[Game.FIELD_W];
             Arrays.fill(line, ' ');
-            if (row >= floorStart) {
-                Arrays.fill(line, '#');
+            for (int col = 0; col < Game.FIELD_W; col++) {
+                if (row >= floor.heightAt(col)) {
+                    line[col] = '#';
+                }
             }
             drawSubOnLine(line, row, anchorRow);
             System.out.println("|" + new String(line) + "|");
