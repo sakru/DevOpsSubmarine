@@ -2,9 +2,9 @@
  * Controller: reads console key input.
  *
  * Keys:
- *   w  - decrease depth (sub goes up)
- *   s  - increase depth (sub goes down)
- *   0 - quit game
+ *   w  - swim up (depth decreases)
+ *   s  - dive down (depth increases)
+ *   0  - quit game
  */
 import java.io.IOException;
 
@@ -21,8 +21,8 @@ public class Controller {
             while (System.in.available() > 0) {
                 int c = System.in.read();
                 switch (c) {
-                    case 'w' -> game.setDepth(game.getDepth() - 1);
-                    case 's' -> game.setDepth(game.getDepth() + 1);
+                    case 'w' -> game.diveUp();
+                    case 's' -> game.diveDown();
                     case '0' -> game.stop();
                 }
             }

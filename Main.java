@@ -3,6 +3,8 @@
  */
 public class Main {
 
+    private static final long FRAME_MS = 40;
+
     public static void main(String[] args) {
         Game game = new Game();
         Controller controller = new Controller(game);
@@ -11,7 +13,6 @@ public class Main {
         while (game.isRunning()) {
             controller.poll();
             game.update();
-            renderer.clearScreen();
             renderer.draw();
             pauseForFrame();
         }
@@ -19,7 +20,7 @@ public class Main {
 
     private static void pauseForFrame() {
         try {
-            Thread.sleep(40);
+            Thread.sleep(FRAME_MS);
         } catch (InterruptedException e) {
             Thread.currentThread().interrupt();
         }

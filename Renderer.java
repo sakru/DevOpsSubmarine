@@ -1,8 +1,5 @@
 /**
- * Renderers game to the console.
- * TO FIX: Main call clearScreen. And the output contains exactly one escape sequence / Fel
- * 
- * 
+ * Renderer: draws the game state to the console.
  */
 import java.util.Arrays;
 
@@ -22,16 +19,14 @@ public class Renderer {
         this.game = game;
     }
 
-    public void clearScreen() {
-        System.out.print("\033[H\033[2J");
-    }
-
     public void draw() {
         int anchorRow = game.subRow();
         SeaFloor floor = game.getFloor();
+        StringBuilder frame = new StringBuilder(2560);
 
-        System.out.println("Hull: " + game.getHull() + "%");
-        System.out.println(border());
+        frame.append("\033[2J\033[H");
+        frame.append("Hull: ").append(game.getHull()).append("%\n");
+        frame.append(border()).append('\n');
         for (int row = 1; row <= Game.FIELD_H; row++) {
             char[] line = new char[Game.FIELD_W];
             Arrays.fill(line, ' ');
@@ -41,10 +36,14 @@ public class Renderer {
                 }
             }
             drawSubOnLine(line, row, anchorRow);
-            System.out.println("|" + new String(line) + "|");
+            frame.append('|').append(line).append("|\n");
         }
-        System.out.println(border());
-        System.out.println("Depth: " + game.getDepth() + "/10  Level: " + game.getLevel());
+        frame.append(border()).append('\n');
+        frame.append("Depth: ").append(game.getDepth())
+             .append("/").append(Game.MAX_DEPTH)
+             .append("  Level: ").append(game.getLevel()).append('\n');
+
+        System.out.print(frame);
     }
 
     private void drawSubOnLine(char[] line, int row, int anchorRow) {

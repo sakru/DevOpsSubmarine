@@ -10,7 +10,8 @@ public class Game {
     public static final int MAX_DEPTH = 10;
     public static final int SUB_COL = 10;
 
-    private int depth = 5;
+    private int targetDepth = 5;
+    private double depth = 5;
     private int hull = 100;
     private int level = 1;
     private boolean running = true;
@@ -31,6 +32,7 @@ public class Game {
     }
 
     public void update() {
+        moveDepth();
         for (Enemy e : enemies) {
             e.update(this);
         }
@@ -40,8 +42,29 @@ public class Game {
         for (Explosion ex : explosions) {
             ex.tick();
         }
-        removeDead();
         checkCollisions();
+        removeDead();
+    }
+
+    public void diveUp() {
+        targetDepth = Math.max(0, targetDepth - 1);
+    }
+
+    public void diveDown() {
+        targetDepth = (int) Math.min(maxDepth(), targetDepth + 1);
+    }
+
+    private void moveDepth() {
+        targetDepth = (int) Math.min(targetDepth, maxDepth());
+        double d = targetDepth - depth;
+        if (d == 0) {
+            return;
+        }
+        depth += Math.signum(d) * Math.min(Weapons.SUB_SPEED, Math.abs(d));
+    }
+
+    private double maxDepth() {
+        return Math.floor(rowToDepth(floor.heightAt(SUB_COL) - 3) + 1e-9);
     }
 
     private void checkCollisions() {
@@ -87,13 +110,8 @@ public class Game {
         return explosions;
     }
 
-    public void setDepth(int depth) {
-        int maxByFloor = rowToDepth(floor.heightAt(SUB_COL) - 3);
-        this.depth = Math.max(0, Math.min(MAX_DEPTH, Math.min(maxByFloor, depth)));
-    }
-
     public int subRow() {
-        return 3 + depth * (FIELD_H - 6) / MAX_DEPTH;
+        return 3 + (int) Math.round(depth * (FIELD_H - 6) / MAX_DEPTH);
     }
 
     public int rowToDepth(int row) {
@@ -101,7 +119,7 @@ public class Game {
     }
 
     public int getDepth() {
-        return depth;
+        return (int) Math.round(depth);
     }
 
     public int getHull() {
