@@ -36,6 +36,8 @@ public class Renderer {
                 }
             }
             drawSubOnLine(line, row, anchorRow);
+            drawEnemiesOnLine(line, row);
+            drawProjectilesOnLine(line, row);
             frame.append('|').append(line).append("|\n");
         }
         frame.append(border()).append('\n');
@@ -55,6 +57,28 @@ public class Renderer {
                 if (col >= 0 && col < line.length) {
                     line[col] = artLine.charAt(c);
                 }
+            }
+        }
+    }
+
+    private void drawEnemiesOnLine(char[] line, int row) {
+        for (Enemy e : game.getEnemies()) {
+            if (e.getY() != row) continue;
+            String s = e.sprite();
+            for (int c = 0; c < s.length(); c++) {
+                int col = e.getX() + c;
+                if (col >= 0 && col < line.length) {
+                    line[col] = s.charAt(c);
+                }
+            }
+        }
+    }
+
+    private void drawProjectilesOnLine(char[] line, int row) {
+        for (Projectile p : game.getProjectiles()) {
+            if (p.getY() != row) continue;
+            if (p.getX() >= 0 && p.getX() < line.length) {
+                line[p.getX()] = p.sprite().charAt(0);
             }
         }
     }

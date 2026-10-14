@@ -9,6 +9,6 @@ public class Torpedo extends Projectile {
 
     @Override
     public String sprite() {
-        return ">";
+        return "<";
     }
 }

@@ -22,6 +22,9 @@ public class Game {
 
     private SeaFloor floor = new SeaFloor(level);
 
+    private int frame = 0;
+    private int spawnEvery = 60;
+
     public SeaFloor getFloor() {
         return floor;
     }
@@ -29,10 +32,12 @@ public class Game {
     public void setLevel(int level) {
         this.level = level;
         floor = new SeaFloor(level);
+        spawnEvery = Math.max(20, 60 - level * 5);
     }
 
     public void update() {
         moveDepth();
+        spawnEnemies();
         for (Enemy e : enemies) {
             e.update(this);
         }
@@ -44,6 +49,10 @@ public class Game {
         }
         checkCollisions();
         removeDead();
+        if (hull <= 0) {
+            hull = 0;
+            stop();
+        }
     }
 
     public void diveUp() {
@@ -65,6 +74,14 @@ public class Game {
 
     private double maxDepth() {
         return Math.floor(rowToDepth(floor.heightAt(SUB_COL) - 3) + 1e-9);
+    }
+    private void spawnEnemies() {
+        frame++;
+        if (frame % spawnEvery != 0) {
+            return;
+        }
+        int y = 4 + (int) (Math.random() * (FIELD_H - 10));
+        addEnemy(new EnemySub(FIELD_W - 1, y));
     }
 
     private void checkCollisions() {
