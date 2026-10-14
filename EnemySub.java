@@ -1,6 +1,9 @@
 /**
- * EnemySub
- * */
+ * EnemySub: enemy submarine, moves left and fires torpedoes.
+ *
+ * Spawned by the game with its shared RNG, so runs are reproducible
+ * for a given seed.
+ */
 import java.util.Random;
 
 public class EnemySub extends Enemy {
@@ -8,8 +11,12 @@ public class EnemySub extends Enemy {
     private int cooldown;
 
     public EnemySub(int x, int y) {
+        this(x, y, new Random());
+    }
+
+    public EnemySub(int x, int y, Random rng) {
         super(x, y);
-        cooldown = 10 + new Random().nextInt(30);
+        cooldown = 10 + rng.nextInt(30);
     }
 
     @Override

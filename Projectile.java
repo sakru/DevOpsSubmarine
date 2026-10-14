@@ -1,7 +1,6 @@
 /**
- * Projectile: moving weapon (torpedo, depth charge).
- *
- * Moves by constant (vx, vy) each frame, dies outside the field.
+ * Projectile: torpedo, depth charge.
+
  */
 public abstract class Projectile {
 
@@ -24,6 +23,14 @@ public abstract class Projectile {
         if (x < 0 || x >= Game.FIELD_W || y < 1 || y > Game.FIELD_H) {
             kill();
         }
+    }
+
+    public int prevX() {
+        return x - vx;
+    }
+
+    public int prevY() {
+        return y - vy;
     }
 
     public abstract String sprite();
