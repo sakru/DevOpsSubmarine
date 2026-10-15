@@ -1,12 +1,15 @@
 /**
- * EnemyShip: enemy surface ship, rides just below the seabed line and
+ * EnemyShip: enemy surface ship, rides at the water surface and
  * drops depth charges while moving left. Leaves the field on the left.
  */
 import java.util.Random;
+import java.util.HashSet;
+import java.util.Set;
 
-public class EnemyShip extends Enemy {
+public class EnemyShip extends Enemy implements WeaponCarrier {
 
-    private int cooldown;
+    private final Set<Integer> dropColumns = new HashSet<>();
+    private int moveTicks;
 
     public EnemyShip(int x, int y) {
         this(x, y, new Random());
@@ -14,19 +17,30 @@ public class EnemyShip extends Enemy {
 
     public EnemyShip(int x, int y, Random rng) {
         super(x, y);
-        cooldown = Weapons.DEPTH_CHARGE_FIRST_DROP + rng.nextInt(10);
+        int count = Weapons.DEPTH_CHARGE_MIN_PER_PASS
+                + rng.nextInt(Weapons.DEPTH_CHARGE_MAX_PER_PASS
+                - Weapons.DEPTH_CHARGE_MIN_PER_PASS + 1);
+        while (dropColumns.size() < count) {
+            dropColumns.add(rng.nextInt(Game.FIELD_W));
+        }
     }
 
     @Override
     public void update(Game game) {
-        x -= Weapons.ENEMY_SPEED;
-        if (x + sprite().length() <= 0) {
-            kill();
+        if (++moveTicks >= Weapons.SHIP_MOVE_INTERVAL) {
+            moveLeft(Weapons.ENEMY_SPEED);
+            moveTicks = 0;
+        }
+    }
+
+    @Override
+    public void tryAttack(Game game) {
+        if (!isAlive()) {
             return;
         }
-        if (--cooldown <= 0) {
-            game.addProjectile(new DepthCharge(x + sprite().length() / 2, y - 1));
-            cooldown = Weapons.DEPTH_CHARGE_COOLDOWN;
+        int dropX = x + width() / 2;
+        if (dropColumns.remove(dropX)) {
+            game.addProjectile(new DepthCharge(dropX, y + 1));
         }
     }
 

@@ -15,6 +15,7 @@ public class Controller {
 
     private final ConcurrentLinkedQueue<Integer> inputQueue = new ConcurrentLinkedQueue<>();
     private Thread reader;
+    private int escapeState;
 
     private volatile boolean quitRequested = false;
     private volatile boolean inputClosed = false;
@@ -63,10 +64,34 @@ public class Controller {
     }
 
     private void dispatch(int c) {
+        if (c == 27) {
+            escapeState = 1;
+            return;
+        }
+        if (escapeState == 1) {
+            escapeState = 0;
+            if (c == '[' || c == 'O') {
+                escapeState = 2;
+                return;
+            }
+        }
+        if (escapeState == 2) {
+            if (c == 'A') {
+                game.diveUp();
+            } else if (c == 'B') {
+                game.diveDown();
+            }
+            if (c >= 64 && c <= 126) {
+                escapeState = 0;
+            }
+            return;
+        }
         switch (c) {
             case 'w', 'W' -> game.diveUp();
             case 's', 'S' -> game.diveDown();
+            case ' ', 'f', 'F' -> game.fireTorpedo();
             case '0' -> requestQuit();
+            case 4 -> inputClosed = true;
             default -> {
             }
         }

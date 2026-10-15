@@ -1,10 +1,4 @@
 #!/bin/sh
-# Build and run DevOpsSubmarine.
-#
-# Looks for a JDK in this order:
-#   1. $JAVA_HOME/bin (if it contains javac)
-#   2. javac on $PATH
-# Then uses the matching java from the same JDK directory.
 set -eu
 
 cd "$(dirname "$0")"
@@ -17,12 +11,23 @@ else
 fi
 
 if [ -z "$JAVAC" ]; then
+    for JDK_DIR in "$HOME"/.local/share/jdks/* "$HOME"/.jdks/* \
+            "$HOME"/.sdkman/candidates/java/* /usr/lib/jvm/*; do
+        if [ -x "$JDK_DIR/bin/javac" ] && [ -x "$JDK_DIR/bin/java" ]; then
+            JAVAC="$JDK_DIR/bin/javac"
+            break
+        fi
+    done
+fi
+
+if [ -z "$JAVAC" ]; then
     echo "Error: javac not found." >&2
-    echo "Install a JDK (for example: apt install openjdk-21-jdk)" >&2
+    echo "Install JDK 17 or newer" >&2
     echo "or point JAVA_HOME at an existing JDK directory." >&2
     exit 1
 fi
 
+JAVAC="$(readlink -f "$JAVAC" 2>/dev/null || printf '%s\n' "$JAVAC")"
 JDK_BIN="$(dirname "$JAVAC")"
 JAVA="$JDK_BIN/java"
 if [ ! -x "$JAVA" ]; then
@@ -42,6 +47,15 @@ mkdir build
 if ! "$JAVAC" -d build *.java; then
     echo "Error: compilation failed. See messages above." >&2
     exit 1
+fi
+
+if [ -t 0 ] && [ -t 1 ]; then
+    TERMINAL_STATE="$(stty -g)"
+    trap 'stty "$TERMINAL_STATE" 2>/dev/null || true' EXIT
+    trap 'exit 129' HUP
+    trap 'exit 130' INT
+    trap 'exit 143' TERM
+    stty -icanon -echo min 1 time 0
 fi
 
 "$JAVA" -cp build Main

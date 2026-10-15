@@ -6,8 +6,12 @@
  */
 import java.util.Random;
 
-public class EnemySub extends Enemy {
+public class EnemySub extends Enemy implements WeaponCarrier {
 
+    private static final String SPRITE = "        ___          \n"
+            + "  _____/___\\______   \n"
+            + "<=|__o___o___o_____|>";
+    public static final int HEIGHT = SPRITE.split("\n").length;
     private int cooldown;
 
     public EnemySub(int x, int y) {
@@ -21,19 +25,24 @@ public class EnemySub extends Enemy {
 
     @Override
     public void update(Game game) {
-        x -= Weapons.ENEMY_SPEED;
-        if (x < 0) {
-            kill();
+        if (game.getScrollStep() > 0) {
+            moveLeft(Weapons.PLAYER_FORWARD_SPEED + Weapons.ENEMY_SUB_FORWARD_SPEED);
+        }
+    }
+
+    @Override
+    public void tryAttack(Game game) {
+        if (!isAlive()) {
             return;
         }
         if (--cooldown <= 0) {
-            game.addProjectile(new Torpedo(x, y));
+            game.addProjectile(new Torpedo(x - 1, y + height() / 2));
             cooldown = Weapons.TORPEDO_COOLDOWN;
         }
     }
 
     @Override
     public String sprite() {
-        return "<=>";
+        return SPRITE;
     }
 }

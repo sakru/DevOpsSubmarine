@@ -5,20 +5,28 @@
  */
 public class Explosion {
 
-    private static final int DURATION_FRAMES = 2;
-
-    private final int x;
+    private int x;
     private final int y;
-    private int framesLeft = DURATION_FRAMES;
+    private final boolean damagesPlayer;
+    private int framesLeft = Weapons.EXPLOSION_VISUAL_FRAMES;
     private boolean damaged = false;
 
     public Explosion(int x, int y) {
+        this(x, y, true);
+    }
+
+    public Explosion(int x, int y, boolean damagesPlayer) {
         this.x = x;
         this.y = y;
+        this.damagesPlayer = damagesPlayer;
     }
 
     public void tick() {
         framesLeft--;
+    }
+
+    public void scrollLeft(int columns) {
+        x -= columns;
     }
 
     public boolean isDone() {
@@ -38,23 +46,17 @@ public class Explosion {
         return y;
     }
 
-    public boolean hasDamaged() {
-        return damaged;
-    }
-
-    public void markDamaged() {
+    public int damageOnceAtBox(int left, int top, int right, int bottom) {
+        if (damaged || isDone()) {
+            return 0;
+        }
         damaged = true;
-    }
-
-    /** True when the blast circle touches the given box. */
-    public boolean overlapsBox(int left, int top, int right, int bottom) {
-        int radius = blastRadius();
-        return Math.abs(x - (left + right) / 2.0) <= radius + (right - left) / 2.0
-                && Math.abs(y - (top + bottom) / 2.0) <= radius + (bottom - top) / 2.0;
-    }
-
-    public int blastRadius() {
-        return (Weapons.EXPLOSION_MAX_DAMAGE - 1) / Weapons.EXPLOSION_DAMAGE_STEP;
+        if (!damagesPlayer) {
+            return 0;
+        }
+        int closestX = Math.max(left, Math.min(right, x));
+        int closestY = Math.max(top, Math.min(bottom, y));
+        return damageAt(closestX, closestY);
     }
 
     public String sprite() {

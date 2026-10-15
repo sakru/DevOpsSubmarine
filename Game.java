@@ -7,24 +7,36 @@ import java.util.Random;
 
 public class Game {
 
-    public static final int FIELD_W = 80;
-    public static final int FIELD_H = 24;
-    public static final int MAX_DEPTH = 10;
+    public static final int FIELD_W = 160;
+    public static final int FIELD_H = 36;
+    public static final int MAX_DEPTH = 15;
     public static final int SUB_COL = 10;
     public static final int TOP_ROW = 3;
     public static final int BOTTOM_ROW = FIELD_H - 3;
+    /** Every generated level leaves room for the entire hull at this depth. */
     public static final int SAFE_DEPTH = 5;
+    public static final int TICKS_PER_SECOND = 25;
     public static final int SECONDS_PER_LEVEL = 15;
     public static final int MAX_LEVEL = 12;
     public static final int MIN_LEVEL = 1;
     public static final int START_DEPTH = 5;
-    public static final int SHIP_ROW_OFFSET = 2;
+    public static final int SHIP_ROW = 1;
 
     public enum StopReason { HULL_BROKEN, QUIT, EOF, INTERRUPTED }
 
     private static final double ROWS_PER_DEPTH = (FIELD_H - 2.0 * TOP_ROW) / MAX_DEPTH;
+    /** First ground row must be below the bottom of the hull at SAFE_DEPTH. */
+    public static final int MIN_FLOOR_ROW = TOP_ROW
+            + (int) Math.round(SAFE_DEPTH * ROWS_PER_DEPTH)
+            + Submarine.OFFSET_Y + Submarine.HEIGHT;
+    private static final int TICKS_PER_LEVEL = TICKS_PER_SECOND * SECONDS_PER_LEVEL;
+    private static final double INITIAL_SPAWN_SECONDS = 2.4;
+    private static final double MIN_SPAWN_SECONDS = 0.8;
+    private static final double SPAWN_STEP_SECONDS = 0.2;
     private static final int SPAWN_ROW_TOP = 4;
-    private static final int SPAWN_ROW_BOTTOM = 17;
+    private static final int SPAWN_ROW_BOTTOM = FIELD_H - 7;
+    private static final int MIN_SHIP_RESPAWN_SECONDS = 1;
+    private static final int MAX_SHIP_RESPAWN_SECONDS = 10;
 
     private int targetDepth = START_DEPTH;
     private double depth = START_DEPTH;
@@ -45,9 +57,15 @@ public class Game {
     private int frame = 0;
     private int spawnEvery = 60;
     private int spawnCounter = 0;
+    private EnemyShip activeShip;
+    private int shipSpawnCooldown;
+    private int scrollStep;
+    private long distance;
+    private int torpedoCooldown;
+    private int kills;
 
     public Game() {
-        this(1L);
+        this(new Random().nextLong());
     }
 
     public Game(long seed) {
@@ -57,9 +75,9 @@ public class Game {
     public Game(long seed, boolean autoLevel) {
         this.rng = new Random(seed);
         this.autoLevel = autoLevel;
-        this.floor = new SeaFloor(MIN_LEVEL, rng);
         applyLevel(MIN_LEVEL);
         clampToWater();
+        shipSpawnCooldown = nextShipSpawnCooldown();
     }
 
     public SeaFloor getFloor() {
@@ -82,28 +100,69 @@ public class Game {
         this.level = l;
         applyLevel(l);
         clampToWater();
+        discardBuriedObjects();
     }
 
     private void applyLevel(int l) {
         floor = new SeaFloor(l, rng);
-        spawnEvery = Math.max(20, 60 - (l - MIN_LEVEL) * 5);
+        double spawnSeconds = Math.max(MIN_SPAWN_SECONDS,
+                INITIAL_SPAWN_SECONDS - (l - MIN_LEVEL) * SPAWN_STEP_SECONDS);
+        spawnEvery = (int) Math.round(TICKS_PER_SECOND * spawnSeconds);
         spawnCounter = 0;
     }
 
     private void autoLevelUp() {
-        if (autoLevel && level < MAX_LEVEL && (frame / 60) % SECONDS_PER_LEVEL == 0) {
+        if (autoLevel && level < MAX_LEVEL && frame % TICKS_PER_LEVEL == 0) {
             setLevel(level + 1);
         }
     }
 
     /** Keeps the sub in the water: within field, above the floor, never negative. */
     private void clampToWater() {
-        double maxD = maxDepthAt(subBoxLeft(), subBoxRight());
-        if (maxD < 0) {
-            maxD = 0;
-        }
-        targetDepth = (int) Math.max(0, Math.min(maxD, targetDepth));
+        int maxD = maxDepth();
+        targetDepth = Math.max(0, Math.min(maxD, targetDepth));
         depth = Math.max(0, Math.min(maxD, depth));
+    }
+
+    /** A new seabed removes buried objects without causing combat damage. */
+    private void discardBuriedObjects() {
+        for (Enemy enemy : enemies) {
+            if (!isAboveFloor(enemy.getX(), enemy.getX() + enemy.width() - 1,
+                    enemy.getY(), enemy.height())) {
+                enemy.kill();
+            }
+        }
+        for (Projectile projectile : projectiles) {
+            if (!isAboveFloor(projectile.getX(), projectile.getX() + projectile.width() - 1,
+                    projectile.getY())) {
+                projectile.kill();
+            }
+        }
+        explosions.removeIf(ex -> !isAboveFloor(ex.getX(), ex.getX(), ex.getY()));
+        removeDead();
+    }
+
+    /** Partly visible sprites are checked across all their visible columns. */
+    private boolean isAboveFloor(int left, int right, int row) {
+        return isAboveFloor(left, right, row, 1);
+    }
+
+    private boolean isAboveFloor(int left, int right, int row, int height) {
+        int visibleLeft = Math.max(0, left);
+        int visibleRight = Math.min(FIELD_W - 1, right);
+        int bottom = row + height - 1;
+        if (row < 1 || bottom > FIELD_H || visibleLeft > visibleRight) {
+            return false;
+        }
+        return bottom < highestFloorRow(visibleLeft, visibleRight);
+    }
+
+    private int highestFloorRow(int left, int right) {
+        int topFloor = FIELD_H;
+        for (int col = left; col <= right; col++) {
+            topFloor = Math.min(topFloor, floor.heightAt(col));
+        }
+        return topFloor;
     }
 
     public void update() {
@@ -111,10 +170,22 @@ public class Game {
             return;
         }
         frame++;
+        advanceForward();
+        if (torpedoCooldown > 0) {
+            torpedoCooldown--;
+        }
         moveDepth();
         spawnEnemies();
         for (Enemy e : enemies) {
-            e.update(this);
+            if (e.isAlive()) {
+                e.update(this);
+                if (!isAboveFloor(e.getX(), e.getX() + e.width() - 1, e.getY(), e.height())) {
+                    e.kill();
+                }
+                if (e.isAlive() && e instanceof WeaponCarrier carrier) {
+                    carrier.tryAttack(this);
+                }
+            }
         }
         for (Projectile p : projectiles) {
             if (p.isAlive()) {
@@ -126,10 +197,11 @@ public class Game {
         }
         checkCollisions();
         removeDead();
-        autoLevelUp();
         if (hull <= 0) {
             hull = 0;
             stop(StopReason.HULL_BROKEN);
+        } else {
+            autoLevelUp();
         }
     }
 
@@ -137,124 +209,210 @@ public class Game {
         targetDepth = Math.max(0, targetDepth - 1);
     }
 
+    public void fireTorpedo() {
+        if (running && hull > 0 && torpedoCooldown == 0) {
+            addProjectile(new Torpedo(subBoxRight() + 1, subRow(), true));
+            torpedoCooldown = Weapons.PLAYER_TORPEDO_COOLDOWN;
+        }
+    }
+
+    private void advanceForward() {
+        scrollStep = frame % Weapons.FORWARD_MOVE_INTERVAL == 0
+                ? Weapons.PLAYER_FORWARD_SPEED : 0;
+        distance += scrollStep;
+        floor.scrollLeft(scrollStep, rng);
+        for (Explosion explosion : explosions) {
+            explosion.scrollLeft(scrollStep);
+        }
+    }
+
+    public int getScrollStep() {
+        return scrollStep;
+    }
+
+    public long getDistance() {
+        return distance;
+    }
+
+    public int getKills() {
+        return kills;
+    }
+
     public void diveDown() {
-        targetDepth = (int) Math.min(maxDepth(), targetDepth + 1);
+        targetDepth = Math.min(maxDepth(), targetDepth + 1);
     }
 
     private void moveDepth() {
-        double maxD = Math.max(0, maxDepthAt(subBoxLeft(), subBoxRight()));
-        targetDepth = (int) Math.min(targetDepth, maxD);
+        clampToWater();
         double d = targetDepth - depth;
         if (d == 0) {
             return;
         }
         double step = Math.min(Weapons.SUB_SPEED, Math.abs(d));
         depth += Math.signum(d) * step;
-        depth = Math.min(depth, maxD);
     }
 
     /** Rows from the anchor to the bottom of the hull box. */
     private static int bottomOffset() {
-        return Weapons.SUB_H - 1 + Weapons.SUB_OFFSET_Y; // 5 - 1 + (-2) = 2
+        return Submarine.HEIGHT - 1 + Submarine.OFFSET_Y;
     }
 
-    private double maxDepthAt(int leftCol, int rightCol) {
-        int topFloor = Integer.MAX_VALUE;
-        for (int c = leftCol; c <= rightCol; c++) {
-            topFloor = Math.min(topFloor, floor.heightAt(c));
-        }
+    private int maxDepthAt(int leftCol, int rightCol) {
+        int topFloor = highestFloorRow(leftCol, rightCol);
         int maxAnchorRow = Math.min(BOTTOM_ROW, topFloor - 1 - bottomOffset());
         return Math.max(0, rowToDepthFloor(maxAnchorRow));
     }
 
 
-    private double maxDepth() {
+    private int maxDepth() {
         return maxDepthAt(subBoxLeft(), subBoxRight());
     }
 
     private void spawnEnemies() {
+        spawnShip();
         spawnCounter++;
         if (spawnCounter < spawnEvery) {
             return;
         }
         spawnCounter = 0;
-        boolean ship = rng.nextBoolean();
-        if (ship) {
-            int row = floor.heightAt(FIELD_W - 1) + SHIP_ROW_OFFSET;
-            row = Math.min(row, FIELD_H);
-            addEnemy(new EnemyShip(FIELD_W - 1, row, rng));
-        } else {
-            int y = SPAWN_ROW_TOP + rng.nextInt(SPAWN_ROW_BOTTOM - SPAWN_ROW_TOP + 1);
+        int type = rng.nextInt(3);
+        if (type == 0) {
+            return;
+        }
+        int height = type == 1 ? EnemySub.HEIGHT : 1;
+        int bottom = Math.min(SPAWN_ROW_BOTTOM, highestFloorRow(0, FIELD_W - 1) - height);
+        int y = SPAWN_ROW_TOP + rng.nextInt(bottom - SPAWN_ROW_TOP + 1);
+        if (type == 1) {
             addEnemy(new EnemySub(FIELD_W - 1, y, rng));
+        } else {
+            addEnemy(new EnemyMine(FIELD_W - 1, y));
         }
     }
 
+    private void spawnShip() {
+        if (activeShip == null && --shipSpawnCooldown <= 0) {
+            addEnemy(new EnemyShip(FIELD_W - 1, SHIP_ROW, rng));
+        }
+    }
+
+    private int nextShipSpawnCooldown() {
+        int seconds = MIN_SHIP_RESPAWN_SECONDS
+                + rng.nextInt(MAX_SHIP_RESPAWN_SECONDS - MIN_SHIP_RESPAWN_SECONDS + 1);
+        return seconds * TICKS_PER_SECOND;
+    }
+
     private void checkCollisions() {
-        int subRow = subRow();
-        int left = subBoxLeft();
-        int right = subBoxRight();
-        int top = subBoxTop(subRow);
-        int bottom = subBoxBottom(subRow);
+        checkProjectileCollisions();
+        checkEnemyCollisions();
+        applyExplosionDamage();
+    }
 
+    private void checkProjectileCollisions() {
         for (Projectile p : projectiles) {
-            if (!p.isAlive() || !(p instanceof Torpedo)) {
-                continue;
-            }
-            int px = p.prevX();
-            int py = p.prevY();
-            int x = p.getX();
-            int y = p.getY();
-            if (segmentHitsBox(px, py, x, y, left, top, right, bottom)) {
-                p.kill();
-                hull -= Weapons.TORPEDO_DAMAGE;
+            if (p.isAlive()) {
+                checkProjectilePath(p);
             }
         }
+    }
 
-        for (Projectile p : projectiles) {
-            if (!p.isAlive() || !(p instanceof DepthCharge)) {
-                continue;
+    private void checkProjectilePath(Projectile projectile) {
+        int dx = projectile.getX() - projectile.prevX();
+        int dy = projectile.getY() - projectile.prevY();
+        int steps = Math.max(Math.abs(dx), Math.abs(dy));
+        int width = projectile.width();
+        for (int step = 0; step <= steps; step++) {
+            double fraction = steps == 0 ? 0 : (double) step / steps;
+            int x = projectile.prevX() + (int) Math.round(dx * fraction);
+            int y = projectile.prevY() + (int) Math.round(dy * fraction);
+            if (x + width <= 0 || x >= FIELD_W || y < 1 || y > FIELD_H) {
+                projectile.kill();
+                return;
             }
-            int x = p.getX();
-            int y = p.getY();
-            if (pointInBox(x, y, left, top, right, bottom)) {
-                p.kill();
-                addExplosion(new Explosion(x, y));
-            } else if (y >= floor.heightAt(x)) {
-                p.kill();
-                int ex = Math.max(1, Math.min(FIELD_H - 1, y));
-                addExplosion(new Explosion(x, ex));
+            for (int part = 0; part < width; part++) {
+                int hitX = x + (projectile.isPlayerOwned() ? width - part - 1 : part);
+                if (hitX >= 0 && hitX < FIELD_W && hitProjectileAt(projectile, hitX, y)) {
+                    return;
+                }
             }
         }
+    }
 
+    private boolean hitProjectileAt(Projectile projectile, int x, int y) {
+        if (y >= floor.heightAt(x)) {
+            projectile.hit(this, x, y, false);
+            return true;
+        }
+        if (projectile.isPlayerOwned()) {
+            return hitEnemyAt(projectile, x, y);
+        }
+        if (pointInBox(x, y, subBoxLeft(), subBoxTop(subRow()),
+                subBoxRight(), subBoxBottom(subRow()))) {
+            projectile.hit(this, x, y, true);
+            return true;
+        }
+        return false;
+    }
+
+    private boolean hitEnemyAt(Projectile projectile, int x, int y) {
+        for (Enemy enemy : enemies) {
+            if (enemy.isAlive() && pointInBox(x, y, enemy.getX(), enemy.getY(),
+                    enemy.getX() + enemy.width() - 1, enemy.getY() + enemy.height() - 1)) {
+                enemy.kill();
+                projectile.hit(this, x, y, false);
+                addExplosion(new Explosion(x, y, false));
+                kills++;
+                return true;
+            }
+        }
+        return false;
+    }
+
+    private void applyExplosionDamage() {
         for (Explosion ex : explosions) {
-            if (!ex.hasDamaged() && ex.overlapsBox(left, top, right, bottom)) {
-                ex.markDamaged();
-                hull -= ex.damageAt(SUB_COL, subRow);
-            }
+            damageHull(ex.damageOnceAtBox(subBoxLeft(), subBoxTop(subRow()),
+                    subBoxRight(), subBoxBottom(subRow())));
         }
+    }
 
+    private void checkEnemyCollisions() {
         for (Enemy e : enemies) {
             if (!e.isAlive()) {
                 continue;
             }
             int el = e.getX();
-            int er = e.getX() + e.sprite().length() - 1;
-            int et = e.getY();
-            int eb = e.getY();
-            if (boxesOverlap(left, top, right, bottom, el, et, er, eb)) {
-                e.kill();
-                hull -= Weapons.RAM_DAMAGE;
+            int er = e.getX() + e.width() - 1;
+            if (boxesOverlap(subBoxLeft(), subBoxTop(subRow()),
+                    subBoxRight(), subBoxBottom(subRow()), el, e.getY(), er,
+                    e.getY() + e.height() - 1)) {
+                e.onContact(this);
             }
         }
+    }
+
+    public void damageHull(int damage) {
+        if (damage < 0) {
+            throw new IllegalArgumentException("Damage cannot be negative");
+        }
+        hull = Math.max(0, hull - damage);
     }
 
     private void removeDead() {
         enemies.removeIf(e -> !e.isAlive());
         projectiles.removeIf(p -> !p.isAlive());
-        explosions.removeIf(Explosion::isDone);
+        explosions.removeIf(ex -> ex.isDone() || ex.getX() < 0 || ex.getX() >= FIELD_W);
+        if (activeShip != null && !activeShip.isAlive()) {
+            activeShip = null;
+            shipSpawnCooldown = nextShipSpawnCooldown();
+        }
     }
 
     public void addEnemy(Enemy enemy) {
+        if (enemy instanceof EnemyShip ship) {
+            if (activeShip != null && activeShip.isAlive()) {
+                throw new IllegalArgumentException("Only one surface ship can be active");
+            }
+            activeShip = ship;
+        }
         enemies.add(enemy);
     }
 
@@ -281,19 +439,19 @@ public class Game {
     // --- geometry -----------------------------------------------------------
 
     public int subBoxLeft() {
-        return SUB_COL + Weapons.SUB_OFFSET_X;
+        return SUB_COL + Submarine.OFFSET_X;
     }
 
     public int subBoxRight() {
-        return SUB_COL + Weapons.SUB_OFFSET_X + Weapons.SUB_W - 1;
+        return subBoxLeft() + Submarine.WIDTH - 1;
     }
 
     public int subBoxTop(int anchorRow) {
-        return anchorRow + Weapons.SUB_OFFSET_Y;
+        return anchorRow + Submarine.OFFSET_Y;
     }
 
     public int subBoxBottom(int anchorRow) {
-        return anchorRow + Weapons.SUB_OFFSET_Y + Weapons.SUB_H - 1;
+        return subBoxTop(anchorRow) + Submarine.HEIGHT - 1;
     }
 
     public boolean isAlive() {
@@ -318,7 +476,7 @@ public class Game {
 
     /** Whole seconds of survival. */
     public int getSurvivalSeconds() {
-        return frame / 60;
+        return frame / TICKS_PER_SECOND;
     }
 
     public int getFrame() {
@@ -326,7 +484,7 @@ public class Game {
     }
 
     public int getScore() {
-        return frame / 60;
+        return getSurvivalSeconds();
     }
 
     public int getSpawnEvery() {
@@ -384,7 +542,7 @@ public class Game {
     }
 
     public int getMaxSafeDepth() {
-        return (int) Math.floor(maxDepthAt(subBoxLeft(), subBoxRight()) + 1e-9);
+        return maxDepth();
     }
 
     // --- collision helpers ----------------------------------------------------
@@ -399,12 +557,4 @@ public class Game {
         return px >= left && px <= right && py >= top && py <= bottom;
     }
 
-    private static boolean segmentHitsBox(int x1, int y1, int x2, int y2,
-                                          int left, int top, int right, int bottom) {
-        int minX = Math.min(x1, x2) - 1;
-        int maxX = Math.max(x1, x2) + 1;
-        int minY = Math.min(y1, y2) - 1;
-        int maxY = Math.max(y1, y2) + 1;
-        return boxesOverlap(minX, minY, maxX, maxY, left, top, right, bottom);
-    }
 }

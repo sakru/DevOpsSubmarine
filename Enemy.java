@@ -16,6 +16,34 @@ public abstract class Enemy {
 
     public abstract String sprite();
 
+    protected void moveLeft(int speed) {
+        x -= speed;
+        if (x + width() <= 0) {
+            kill();
+        }
+    }
+
+    public int width() {
+        int width = 0;
+        for (String line : spriteLines()) {
+            width = Math.max(width, line.length());
+        }
+        return width;
+    }
+
+    public int height() {
+        return spriteLines().length;
+    }
+
+    public String[] spriteLines() {
+        return sprite().split("\n", -1);
+    }
+
+    public void onContact(Game game) {
+        kill();
+        game.damageHull(Weapons.RAM_DAMAGE);
+    }
+
     public int getX() {
         return x;
     }

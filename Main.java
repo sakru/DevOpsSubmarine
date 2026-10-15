@@ -3,28 +3,32 @@
  */
 public class Main {
 
-    private static final long FRAME_MS = 40;
+    private static final long FRAME_MS = 1000L / Game.TICKS_PER_SECOND;
 
     public static void main(String[] args) {
         Game game = new Game();
         Controller controller = new Controller(game);
-        Renderer renderer = new Renderer(game);
-
-        while (game.isRunning()) {
-            controller.poll();
-            if (controller.quitRequested()) {
-                game.stop(Game.StopReason.QUIT);
-                break;
+        try (Renderer renderer = new Renderer(game)) {
+            while (game.isRunning()) {
+                controller.poll();
+                if (controller.quitRequested()) {
+                    game.stop(Game.StopReason.QUIT);
+                    break;
+                }
+                if (controller.inputClosed()) {
+                    game.stop(Game.StopReason.EOF);
+                    break;
+                }
+                game.update();
+                renderer.draw();
+                pauseForFrame();
+                if (Thread.currentThread().isInterrupted()) {
+                    game.stop(Game.StopReason.INTERRUPTED);
+                }
             }
-            if (controller.inputClosed()) {
-                game.stop(Game.StopReason.EOF);
-                break;
-            }
-            game.update();
-            renderer.draw();
-            pauseForFrame();
+        } finally {
+            controller.shutdown();
         }
-        controller.shutdown();
         System.out.println(game.getStopMessage());
     }
 
