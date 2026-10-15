@@ -10,6 +10,7 @@ public class Explosion {
     private final int x;
     private final int y;
     private int framesLeft = DURATION_FRAMES;
+    private boolean damaged = false;
 
     public Explosion(int x, int y) {
         this.x = x;
@@ -35,6 +36,25 @@ public class Explosion {
 
     public int getY() {
         return y;
+    }
+
+    public boolean hasDamaged() {
+        return damaged;
+    }
+
+    public void markDamaged() {
+        damaged = true;
+    }
+
+    /** True when the blast circle touches the given box. */
+    public boolean overlapsBox(int left, int top, int right, int bottom) {
+        int radius = blastRadius();
+        return Math.abs(x - (left + right) / 2.0) <= radius + (right - left) / 2.0
+                && Math.abs(y - (top + bottom) / 2.0) <= radius + (bottom - top) / 2.0;
+    }
+
+    public int blastRadius() {
+        return (Weapons.EXPLOSION_MAX_DAMAGE - 1) / Weapons.EXPLOSION_DAMAGE_STEP;
     }
 
     public String sprite() {

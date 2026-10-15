@@ -102,7 +102,7 @@ public class Game {
         if (maxD < 0) {
             maxD = 0;
         }
-        targetDepth = Math.max(0, Math.min(maxD, targetDepth));
+        targetDepth = (int) Math.max(0, Math.min(maxD, targetDepth));
         depth = Math.max(0, Math.min(maxD, depth));
     }
 
@@ -143,7 +143,7 @@ public class Game {
 
     private void moveDepth() {
         double maxD = Math.max(0, maxDepthAt(subBoxLeft(), subBoxRight()));
-        targetDepth = Math.min(targetDepth, maxD);
+        targetDepth = (int) Math.min(targetDepth, maxD);
         double d = targetDepth - depth;
         if (d == 0) {
             return;

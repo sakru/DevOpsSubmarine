@@ -12,10 +12,20 @@ public class Main {
 
         while (game.isRunning()) {
             controller.poll();
+            if (controller.quitRequested()) {
+                game.stop(Game.StopReason.QUIT);
+                break;
+            }
+            if (controller.inputClosed()) {
+                game.stop(Game.StopReason.EOF);
+                break;
+            }
             game.update();
             renderer.draw();
             pauseForFrame();
         }
+        controller.shutdown();
+        System.out.println(game.getStopMessage());
     }
 
     private static void pauseForFrame() {
