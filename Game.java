@@ -1,6 +1,5 @@
 /**
  * Game: game state and rules.
-
  */
 import java.util.ArrayList;
 import java.util.Random;
