@@ -11,6 +11,7 @@ public final class Weapons {
     public static final int ENEMY_SPEED = 1;
     public static final int FORWARD_MOVE_INTERVAL = 3;
     public static final int PLAYER_FORWARD_SPEED = 2;
+    // Screen movement per forward tick: enemy submarines pass more slowly than the seabed.
     public static final int ENEMY_SUB_FORWARD_SPEED = PLAYER_FORWARD_SPEED / 2;
     public static final int SHIP_MOVE_INTERVAL = 3;
     public static final int TORPEDO_COOLDOWN = 30;

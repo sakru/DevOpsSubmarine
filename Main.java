@@ -3,13 +3,15 @@
  */
 public class Main {
 
-    private static final long FRAME_MS = 1000L / Game.TICKS_PER_SECOND;
+    private static final long FRAME_NANOS = 1_000_000_000L / Game.TICKS_PER_SECOND;
 
     public static void main(String[] args) {
         Game game = new Game();
         Controller controller = new Controller(game);
-        try (Renderer renderer = new Renderer(game)) {
+        try (ExplosionWorker explosionWorker = new ExplosionWorker();
+             Renderer renderer = new Renderer(game)) {
             while (game.isRunning()) {
+                long frameStarted = System.nanoTime();
                 controller.poll();
                 if (controller.quitRequested()) {
                     game.stop(Game.StopReason.QUIT);
@@ -21,7 +23,7 @@ public class Main {
                 }
                 game.update();
                 renderer.draw();
-                pauseForFrame();
+                pauseForFrame(frameStarted);
                 if (Thread.currentThread().isInterrupted()) {
                     game.stop(Game.StopReason.INTERRUPTED);
                 }
@@ -32,9 +34,17 @@ public class Main {
         System.out.println(game.getStopMessage());
     }
 
-    private static void pauseForFrame() {
+    static long remainingFrameNanos(long frameStarted, long now) {
+        return Math.max(0, FRAME_NANOS - (now - frameStarted));
+    }
+
+    private static void pauseForFrame(long frameStarted) {
+        long remaining = remainingFrameNanos(frameStarted, System.nanoTime());
+        if (remaining == 0) {
+            return;
+        }
         try {
-            Thread.sleep(FRAME_MS);
+            Thread.sleep(remaining / 1_000_000L, (int) (remaining % 1_000_000L));
         } catch (InterruptedException e) {
             Thread.currentThread().interrupt();
         }

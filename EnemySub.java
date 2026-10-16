@@ -26,7 +26,7 @@ public class EnemySub extends Enemy implements WeaponCarrier {
     @Override
     public void update(Game game) {
         if (game.getScrollStep() > 0) {
-            moveLeft(Weapons.PLAYER_FORWARD_SPEED + Weapons.ENEMY_SUB_FORWARD_SPEED);
+            moveLeft(Weapons.ENEMY_SUB_FORWARD_SPEED);
         }
     }
 

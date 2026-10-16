@@ -26,6 +26,17 @@ public class ProjectileMovementTest {
                     "Torpedo must retain its previous position for collisions");
         }
         check(scroll > 0, "Test must include world scrolling");
+
+        Game simulation = new Game(1L, false);
+        DepthCharge droppedCharge = new DepthCharge(100, 2);
+        simulation.addProjectile(droppedCharge);
+        for (int tick = 0; tick < 120; tick++) {
+            simulation.update();
+            check(droppedCharge.isAlive(), "Test charge must still be falling");
+            check(droppedCharge.getX() == 100,
+                    "Full game loop must keep a falling charge in its screen column");
+        }
+        check(droppedCharge.getY() > 2, "Test charge must fall during simulation");
         System.out.println("Projectile movement checks passed");
     }
 
