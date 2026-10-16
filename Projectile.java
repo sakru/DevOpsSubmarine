@@ -34,13 +34,19 @@ public abstract class Projectile {
     public void update(Game game) {
         previousX = x;
         previousY = y;
-        x -= game.getScrollStep();
+        if (scrollsWithWorld()) {
+            x -= game.getScrollStep();
+        }
         if (++ticksSinceMove + 1e-9 < moveEveryTicks) {
             return;
         }
         ticksSinceMove -= moveEveryTicks;
         x += vx;
         y += vy;
+    }
+
+    protected boolean scrollsWithWorld() {
+        return true;
     }
 
     public int prevX() {

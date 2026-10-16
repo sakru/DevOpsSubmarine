@@ -19,16 +19,7 @@ public class DepthCharge extends Projectile {
     }
 
     @Override
-    public void update(Game game) {
-
-        previousX = x;
-        previousY = y;
-  
-        if (++ticksSinceMove + 1e-9 < moveEveryTicks) {
-            return;
-        }
-        ticksSinceMove -= moveEveryTicks;
-        x += vx;
-        y += vy;
+    protected boolean scrollsWithWorld() {
+        return false;
     }
 }
