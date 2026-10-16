@@ -28,6 +28,7 @@ public class Torpedo extends Projectile {
         if (hitHull && !playerOwned) {
             game.damageHull(Weapons.TORPEDO_DAMAGE);
         }
+        game.addExplosion(new Explosion(hitX, hitY, false));
     }
 
     @Override

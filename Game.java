@@ -20,6 +20,7 @@ public class Game {
     public static final int MIN_LEVEL = 1;
     public static final int START_DEPTH = 5;
     public static final int SHIP_ROW = 1;
+    public static final int MAX_ENEMY_SUBS = 2;
 
     public enum StopReason { HULL_BROKEN, QUIT, EOF, INTERRUPTED }
 
@@ -52,6 +53,7 @@ public class Game {
 
     private final Random rng;
     private final boolean autoLevel;
+    private final ExplosionWorker explosionWorker;
 
     private int frame = 0;
     private int spawnEvery = 60;
@@ -67,13 +69,22 @@ public class Game {
         this(new Random().nextLong());
     }
 
+    public Game(ExplosionWorker explosionWorker) {
+        this(new Random().nextLong(), true, explosionWorker);
+    }
+
     public Game(long seed) {
         this(seed, true);
     }
 
     public Game(long seed, boolean autoLevel) {
+        this(seed, autoLevel, null);
+    }
+
+    public Game(long seed, boolean autoLevel, ExplosionWorker explosionWorker) {
         this.rng = new Random(seed);
         this.autoLevel = autoLevel;
+        this.explosionWorker = explosionWorker;
         applyLevel(MIN_LEVEL);
         clampToWater();
         shipSpawnCooldown = nextShipSpawnCooldown();
@@ -195,6 +206,7 @@ public class Game {
             ex.tick();
         }
         checkCollisions();
+        collectExplosionZones();
         removeDead();
         if (hull <= 0) {
             hull = 0;
@@ -274,8 +286,12 @@ public class Game {
             return;
         }
         spawnCounter = 0;
-        int type = rng.nextInt(3);
-        if (type == 0) {
+        int type = rng.nextInt(6);
+        if (type == 0 || type >= 4) {
+            return;
+        }
+        if (type == 1 && enemies.stream()
+                .filter(e -> e.isAlive() && e instanceof EnemySub).count() >= MAX_ENEMY_SUBS) {
             return;
         }
         int height = type == 1 ? EnemySub.HEIGHT : 1;
@@ -303,7 +319,6 @@ public class Game {
     private void checkCollisions() {
         checkProjectileCollisions();
         checkEnemyCollisions();
-        applyExplosionDamage();
     }
 
     private void checkProjectileCollisions() {
@@ -358,19 +373,11 @@ public class Game {
                     enemy.getX() + enemy.width() - 1, enemy.getY() + enemy.height() - 1)) {
                 enemy.kill();
                 projectile.hit(this, x, y, false);
-                addExplosion(new Explosion(x, y, false));
                 kills++;
                 return true;
             }
         }
         return false;
-    }
-
-    private void applyExplosionDamage() {
-        for (Explosion ex : explosions) {
-            damageHull(ex.damageOnceAtBox(subBoxLeft(), subBoxTop(subRow()),
-                    subBoxRight(), subBoxBottom(subRow())));
-        }
     }
 
     private void checkEnemyCollisions() {
@@ -398,7 +405,8 @@ public class Game {
     private void removeDead() {
         enemies.removeIf(e -> !e.isAlive());
         projectiles.removeIf(p -> !p.isAlive());
-        explosions.removeIf(ex -> ex.isDone() || ex.getX() < 0 || ex.getX() >= FIELD_W);
+        explosions.removeIf(ex -> ex.isDone() || ex.getX() + ex.getRadius() < 0
+                || ex.getX() - ex.getRadius() >= FIELD_W);
         if (activeShip != null && !activeShip.isAlive()) {
             activeShip = null;
             shipSpawnCooldown = nextShipSpawnCooldown();
@@ -420,7 +428,33 @@ public class Game {
     }
 
     public void addExplosion(Explosion explosion) {
-        explosions.add(explosion);
+        // Capture the hull at impact so worker timing cannot change the damage.
+        int hullX = Math.max(subBoxLeft(), Math.min(subBoxRight(), explosion.getX()));
+        int hullY = Math.max(subBoxTop(subRow()), Math.min(subBoxBottom(subRow()), explosion.getY()));
+        ExplosionWorker.Impact impact = new ExplosionWorker.Impact(explosion.getX(), explosion.getY(),
+                hullX, hullY, explosion.damagesPlayer(), distance, frame, level);
+        if (explosionWorker == null) {
+            acceptExplosionZone(ExplosionWorker.prepare(impact));
+        } else {
+            explosionWorker.submit(impact);
+        }
+    }
+
+    private void collectExplosionZones() {
+        if (explosionWorker == null) return;
+        ExplosionWorker.Zone zone;
+        while ((zone = explosionWorker.pollZone()) != null) {
+            acceptExplosionZone(zone);
+        }
+    }
+
+    private void acceptExplosionZone(ExplosionWorker.Zone zone) {
+        damageHull(zone.damage());
+        Explosion explosion = new Explosion(zone, (int) (distance - zone.impact().distance()),
+                frame - zone.impact().frame());
+        if (!explosion.isDone() && zone.impact().level() == level) {
+            explosions.add(explosion);
+        }
     }
 
     public Iterable<Enemy> getEnemies() {

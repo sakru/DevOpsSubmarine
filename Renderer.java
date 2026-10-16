@@ -96,8 +96,10 @@ public class Renderer implements AutoCloseable {
 
     private void drawExplosionsOnLine(char[] line, int row) {
         for (Explosion explosion : game.getExplosions()) {
-            if (explosion.getY() == row && !explosion.isDone()) {
-                drawSprite(line, explosion.getX(), explosion.sprite());
+            int spriteRow = row - (explosion.getY() - explosion.getRadius());
+            if (!explosion.isDone() && spriteRow >= 0 && spriteRow < explosion.spriteLines().size()) {
+                drawSprite(line, explosion.getX() - explosion.getRadius(),
+                        explosion.spriteLines().get(spriteRow));
             }
         }
     }

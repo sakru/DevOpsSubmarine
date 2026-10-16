@@ -1,15 +1,14 @@
-/**
- * Explosion area damage
- *
- * Damage at distance d: EXPLOSION_MAX_DAMAGE - d x EXPLOSION_DAMAGE_STEP
- */
+import java.util.List;
+
+/** Explosion position, appearance and lifetime. */
 public class Explosion {
 
     private int x;
     private final int y;
     private final boolean damagesPlayer;
     private int framesLeft = Weapons.EXPLOSION_VISUAL_FRAMES;
-    private boolean damaged = false;
+    private int radius;
+    private List<String> sprite = List.of("*");
 
     public Explosion(int x, int y) {
         this(x, y, true);
@@ -19,6 +18,13 @@ public class Explosion {
         this.x = x;
         this.y = y;
         this.damagesPlayer = damagesPlayer;
+    }
+
+    public Explosion(ExplosionWorker.Zone zone, int scroll, int elapsedFrames) {
+        this(zone.x() - scroll, zone.y(), false);
+        radius = zone.radius();
+        sprite = zone.sprite();
+        framesLeft -= elapsedFrames;
     }
 
     public void tick() {
@@ -33,9 +39,8 @@ public class Explosion {
         return framesLeft <= 0;
     }
 
-    public int damageAt(int cx, int cy) {
-        int dist = Math.max(Math.abs(cx - x), Math.abs(cy - y));
-        return Math.max(0, Weapons.EXPLOSION_MAX_DAMAGE - dist * Weapons.EXPLOSION_DAMAGE_STEP);
+    public boolean damagesPlayer() {
+        return damagesPlayer;
     }
 
     public int getX() {
@@ -46,20 +51,11 @@ public class Explosion {
         return y;
     }
 
-    public int damageOnceAtBox(int left, int top, int right, int bottom) {
-        if (damaged || isDone()) {
-            return 0;
-        }
-        damaged = true;
-        if (!damagesPlayer) {
-            return 0;
-        }
-        int closestX = Math.max(left, Math.min(right, x));
-        int closestY = Math.max(top, Math.min(bottom, y));
-        return damageAt(closestX, closestY);
+    public int getRadius() {
+        return radius;
     }
 
-    public String sprite() {
-        return "*";
+    public List<String> spriteLines() {
+        return sprite;
     }
 }

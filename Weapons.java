@@ -21,7 +21,7 @@ public final class Weapons {
     public static final double SUB_SPEED = 0.25;
     public static final int EXPLOSION_MAX_DAMAGE = 75;
     public static final int EXPLOSION_DAMAGE_STEP = 25;
-    public static final int EXPLOSION_VISUAL_FRAMES = 3;
+    public static final int EXPLOSION_VISUAL_FRAMES = 8;
     public static final int RAM_DAMAGE = 25;
 
     private Weapons() {

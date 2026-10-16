@@ -28,5 +28,14 @@ public class ExplosionWorkerTest {
         if (zone.x() != x || zone.y() != y || zone.radius() != 2) {
             throw new AssertionError("Unexpected explosion zone: " + zone);
         }
+        if (!zone.sprite().get(2).equals(".+*+.")) {
+            throw new AssertionError("Explosion must show its centre and damage rings");
+        }
+        Explosion scrolled = new Explosion(zone, 4, 2);
+        if (scrolled.getX() != x - 4 || scrolled.getY() != y || scrolled.isDone()) {
+            throw new AssertionError("Delayed zone must account for world movement");
+        }
+        Explosion expired = new Explosion(zone, 0, Weapons.EXPLOSION_VISUAL_FRAMES);
+        if (!expired.isDone()) throw new AssertionError("Old zones must not restart their animation");
     }
 }

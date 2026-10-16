@@ -6,10 +6,15 @@ public class Main {
     private static final long FRAME_NANOS = 1_000_000_000L / Game.TICKS_PER_SECOND;
 
     public static void main(String[] args) {
-        Game game = new Game();
+        try (ExplosionWorker explosionWorker = new ExplosionWorker()) {
+            runGame(explosionWorker);
+        }
+    }
+
+    private static void runGame(ExplosionWorker explosionWorker) {
+        Game game = new Game(explosionWorker);
         Controller controller = new Controller(game);
-        try (ExplosionWorker explosionWorker = new ExplosionWorker();
-             Renderer renderer = new Renderer(game)) {
+        try (Renderer renderer = new Renderer(game)) {
             while (game.isRunning()) {
                 long frameStarted = System.nanoTime();
                 controller.poll();
