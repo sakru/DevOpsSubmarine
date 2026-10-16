@@ -1,5 +1,6 @@
-/**
- * Game: game state and rules.
+/*
+ * Keeps the current session moving: the world scrolls, enemies act and shots hit their targets.
+ * It owns the collections and applies game rules; drawing and keyboard reading happen elsewhere.
  */
 import java.util.ArrayList;
 import java.util.HashSet;

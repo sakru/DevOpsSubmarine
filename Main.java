@@ -1,3 +1,7 @@
+/*
+ * Starts each session, keeps frames on schedule and saves the result when a session ends.
+ * Menu, below, handles difficulty, captain names and browsing saved results.
+ */
 import java.io.IOException;
 import java.io.InputStreamReader;
 import java.io.Reader;

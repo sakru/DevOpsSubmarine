@@ -1,3 +1,7 @@
+/*
+ * Chooses which part of the map fits in the terminal.
+ * It follows the player, keeps the whole submarine in view and stops at the map edges.
+ */
 public final class Camera {
     private int width;
     private int height;

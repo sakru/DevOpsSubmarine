@@ -1,5 +1,6 @@
-/**
- * SeaFloor
+/*
+ * Builds the seabed by choosing a ground height for each map column.
+ * When the world scrolls, it shifts the old terrain left and grows new columns on the right.
  */
 import java.util.Random;
 

@@ -1,3 +1,7 @@
+/*
+ * Sends out automatic waves and remembers which cells they have reached.
+ * Explored terrain stays visible; recent echoes also tell enemies when they have a target.
+ */
 import java.util.Arrays;
 
 public final class Sonar {

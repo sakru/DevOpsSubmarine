@@ -1,3 +1,8 @@
+/*
+ * Enemy holds the position and hull rules that all enemies share.
+ * Ships drop bombs, submarines scan and fire, and mines explode on contact.
+ * DepthCharge is kept here too; it falls straight down after being dropped.
+ */
 import java.util.HashSet;
 import java.util.Random;
 import java.util.Set;

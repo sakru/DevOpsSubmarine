@@ -1,3 +1,7 @@
+/*
+ * Reads keys on a separate thread and puts them in a queue.
+ * The game loop takes them out and applies them, so waiting for input never holds up a frame.
+ */
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.InputStreamReader;

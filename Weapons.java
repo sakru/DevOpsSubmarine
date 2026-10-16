@@ -1,6 +1,6 @@
-/**
- * Weapons.
- *
+/*
+ * Keeps weapon speeds, reload delays and damage values in one place.
+ * These are the numbers to adjust when tuning combat rather than changing how a weapon works.
  */
 public final class Weapons {
 

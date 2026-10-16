@@ -1,10 +1,13 @@
+/*
+ * Prepares blast damage and animation frames in the background.
+ * It reads impact snapshots from a queue and sends the results back for the game loop to apply.
+ */
 import java.util.ArrayList;
 import java.util.List;
 
 import java.util.concurrent.BlockingQueue;
 import java.util.concurrent.LinkedBlockingQueue;
 
-/** Receives impact positions and returns zones to the game thread. */
 public final class ExplosionWorker implements AutoCloseable {
 
     public record Impact(int x, int y, int hullX, int hullY, boolean damagesPlayer,

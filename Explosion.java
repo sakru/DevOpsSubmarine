@@ -1,6 +1,9 @@
+/*
+ * Keeps track of one explosion on screen: its position, animation and remaining lifetime.
+ * ExplosionWorker supplies the blast calculations and animation frames.
+ */
 import java.util.List;
 
-/** Explosion position, appearance and lifetime. */
 public class Explosion {
 
     private int x;

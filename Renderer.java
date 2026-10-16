@@ -1,5 +1,6 @@
-/**
- * Renderer: draws the game state to the console.
+/*
+ * Turns the current game state into a terminal frame, including colours and sonar waves.
+ * It also draws menus over the scene. All terminal drawing stays on the main thread.
  */
 import java.util.List;
 

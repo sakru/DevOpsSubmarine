@@ -1,6 +1,6 @@
-/**
- * Projectile: torpedo, depth charge.
-
+/*
+ * Shares movement between torpedoes and depth charges.
+ * It remembers the previous position so a fast shot cannot skip a target between frames.
  */
 public abstract class Projectile {
 

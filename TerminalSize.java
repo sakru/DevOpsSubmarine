@@ -1,8 +1,11 @@
+/*
+ * Checks the terminal size now and then so resizing the window can update the camera.
+ * If the terminal cannot be queried, it keeps the last known size.
+ */
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
 import java.util.concurrent.TimeUnit;
 
-/** Reads the current terminal dimensions without consuming keyboard input. */
 public final class TerminalSize {
     public record Size(int columns, int rows) {}
 

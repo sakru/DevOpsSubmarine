@@ -1,5 +1,6 @@
-/**
- * Torpedo
+/*
+ * A straight-moving shot for either the player or an enemy.
+ * Its owner decides the direction and targets; the explosion on impact is only a visual effect.
  */
 public class Torpedo extends Projectile {
 

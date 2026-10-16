@@ -1,3 +1,8 @@
+/*
+ * Describes the inside of a vessel: rooms, local damage, crew and repairs.
+ * Player and enemy vessels share these rules. Crew, below, moves sailors through the interior
+ * and keeps track of their injuries and repair work.
+ */
 import java.util.Arrays;
 import java.util.EnumMap;
 import java.util.Random;

@@ -1,3 +1,7 @@
+/*
+ * Keeps finished sessions in memory and saves them to scores.tsv.
+ * Ranking, name searches, totals and deletion live here so the menu only needs to ask for them.
+ */
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.AtomicMoveNotSupportedException;

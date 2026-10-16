@@ -1,4 +1,6 @@
 #!/bin/sh
+# Finds a matching Java compiler and runtime, builds the game, then starts it.
+# Keyboard input is switched to raw mode for play; the original terminal settings are restored on exit.
 set -eu
 
 cd "$(dirname "$0")"
