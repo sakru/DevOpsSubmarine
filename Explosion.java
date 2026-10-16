@@ -8,7 +8,7 @@ public class Explosion {
     private final boolean damagesPlayer;
     private int framesLeft = Weapons.EXPLOSION_VISUAL_FRAMES;
     private int radius;
-    private List<String> sprite = List.of("*");
+    private List<List<String>> frames = List.of(List.of("*"));
 
     public Explosion(int x, int y) {
         this(x, y, true);
@@ -23,7 +23,7 @@ public class Explosion {
     public Explosion(ExplosionWorker.Zone zone, int scroll, int elapsedFrames) {
         this(zone.x() - scroll, zone.y(), false);
         radius = zone.radius();
-        sprite = zone.sprite();
+        frames = zone.frames();
         framesLeft -= elapsedFrames;
     }
 
@@ -56,6 +56,9 @@ public class Explosion {
     }
 
     public List<String> spriteLines() {
-        return sprite;
+        if (isDone()) return List.of();
+        int age = Weapons.EXPLOSION_VISUAL_FRAMES - framesLeft;
+        int phase = Math.min(frames.size() - 1, age * frames.size() / Weapons.EXPLOSION_VISUAL_FRAMES);
+        return frames.get(phase);
     }
 }

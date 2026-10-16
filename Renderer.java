@@ -99,15 +99,19 @@ public class Renderer implements AutoCloseable {
             int spriteRow = row - (explosion.getY() - explosion.getRadius());
             if (!explosion.isDone() && spriteRow >= 0 && spriteRow < explosion.spriteLines().size()) {
                 drawSprite(line, explosion.getX() - explosion.getRadius(),
-                        explosion.spriteLines().get(spriteRow));
+                        explosion.spriteLines().get(spriteRow), true);
             }
         }
     }
 
     private void drawSprite(char[] line, int left, String sprite) {
+        drawSprite(line, left, sprite, false);
+    }
+
+    private void drawSprite(char[] line, int left, String sprite, boolean transparent) {
         for (int i = 0; i < sprite.length(); i++) {
             int col = left + i;
-            if (col >= 0 && col < line.length) {
+            if (col >= 0 && col < line.length && (!transparent || sprite.charAt(i) != ' ')) {
                 line[col] = sprite.charAt(i);
             }
         }

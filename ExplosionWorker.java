@@ -9,9 +9,9 @@ public final class ExplosionWorker implements AutoCloseable {
 
     public record Impact(int x, int y, int hullX, int hullY, boolean damagesPlayer,
                          long distance, int frame, int level) {}
-    public record Zone(Impact impact, int radius, List<String> sprite, int damage) {
+    public record Zone(Impact impact, int radius, List<List<String>> frames, int damage) {
         public Zone {
-            sprite = List.copyOf(sprite);
+            frames = frames.stream().map(List::copyOf).toList();
         }
 
         public int x() { return impact.x(); }
@@ -53,21 +53,31 @@ public final class ExplosionWorker implements AutoCloseable {
 
     static Zone prepare(Impact impact) {
         int radius = (Weapons.EXPLOSION_MAX_DAMAGE - 1) / Weapons.EXPLOSION_DAMAGE_STEP;
-        List<String> sprite = new ArrayList<>();
-        for (int dy = -radius; dy <= radius; dy++) {
-            StringBuilder row = new StringBuilder();
-            for (int dx = -radius; dx <= radius; dx++) {
-                int ring = Math.max(Math.abs(dx), Math.abs(dy));
-                row.append(ring == 0 ? '*' : ring == radius ? '.' : '+');
+        List<List<String>> frames = new ArrayList<>();
+        for (int phase = 0; phase < 4; phase++) {
+            List<String> sprite = new ArrayList<>();
+            for (int dy = -radius; dy <= radius; dy++) {
+                StringBuilder row = new StringBuilder();
+                for (int dx = -radius; dx <= radius; dx++) {
+                    int ring = Math.max(Math.abs(dx), Math.abs(dy));
+                    char cell = ring == radius ? '.' : ' ';
+                    if (phase == 3) {
+                        if (ring == 0) cell = '.';
+                    } else if (ring <= phase) {
+                        cell = ring == 0 ? (phase == 2 ? '@' : '*') : ring == phase ? '+' : '*';
+                    }
+                    row.append(cell);
+                }
+                sprite.add(row.toString());
             }
-            sprite.add(row.toString());
+            frames.add(sprite);
         }
         int distance = Math.max(Math.abs(impact.hullX() - impact.x()),
                 Math.abs(impact.hullY() - impact.y()));
         int damage = impact.damagesPlayer()
                 ? Math.max(0, Weapons.EXPLOSION_MAX_DAMAGE - distance * Weapons.EXPLOSION_DAMAGE_STEP)
                 : 0;
-        return new Zone(impact, radius, sprite, damage);
+        return new Zone(impact, radius, frames, damage);
     }
 
     @Override

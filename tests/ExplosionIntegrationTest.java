@@ -12,6 +12,8 @@ public class ExplosionIntegrationTest {
             awaitExplosion(game);
             check(game.getHull() == 25, "Mine must deal 75 damage once");
             check(countExplosions(game) == 1, "Mine must produce one explosion");
+            game.update();
+            game.update();
             check(render(game).contains(".+*+."), "Renderer must draw the worker's damage zone");
             for (int i = 0; i < Weapons.EXPLOSION_VISUAL_FRAMES; i++) game.update();
             check(game.getHull() == 25, "Animation must not deal repeated damage");

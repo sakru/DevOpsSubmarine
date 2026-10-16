@@ -28,7 +28,7 @@ public class ExplosionWorkerTest {
         if (zone.x() != x || zone.y() != y || zone.radius() != 2) {
             throw new AssertionError("Unexpected explosion zone: " + zone);
         }
-        if (!zone.sprite().get(2).equals(".+*+.")) {
+        if (!zone.frames().get(1).get(2).equals(".+*+.")) {
             throw new AssertionError("Explosion must show its centre and damage rings");
         }
         Explosion scrolled = new Explosion(zone, 4, 2);
