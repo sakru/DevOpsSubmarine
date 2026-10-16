@@ -6,7 +6,8 @@ public class Controller {
 
     private static final int EOF = -1;
 
-    private final Game game;
+    private Game game;
+    private boolean restartRequested;
 
     private final ConcurrentLinkedQueue<Integer> inputQueue = new ConcurrentLinkedQueue<>();
     private final Thread reader;
@@ -41,7 +42,7 @@ public class Controller {
         Integer b;
         while ((b = inputQueue.poll()) != null) {
             dispatch(b);
-            if (quitRequested) {
+            if (quitRequested || restartRequested) {
                 break;
             }
         }
@@ -63,14 +64,20 @@ public class Controller {
             }
         }
         if (escapeState == 2) {
-            if (c == 'A') {
+            if (game.isRunning() && c == 'A') {
                 game.diveUp();
-            } else if (c == 'B') {
+            } else if (game.isRunning() && c == 'B') {
                 game.diveDown();
             }
             if (c >= 64 && c <= 126) {
                 escapeState = 0;
             }
+            return;
+        }
+        if (!game.isRunning()) {
+            if (c == '1') restartRequested = true;
+            if (c == '0') requestQuit();
+            if (c == 4) inputClosed = true;
             return;
         }
         switch (c) {
@@ -79,6 +86,7 @@ public class Controller {
             case 'a', 'A' -> game.brake();
             case 'd', 'D' -> game.accelerate();
             case ' ', 'f', 'F' -> game.fireTorpedo();
+            case 'r', 'R' -> game.repair();
             case '0' -> requestQuit();
             case 4 -> inputClosed = true;
             default -> {
@@ -88,6 +96,17 @@ public class Controller {
 
     public boolean quitRequested() {
         return quitRequested;
+    }
+
+    public boolean restartRequested() {
+        return restartRequested;
+    }
+
+    public void startGame(Game game) {
+        this.game = game;
+        restartRequested = false;
+        escapeState = 0;
+        inputQueue.clear();
     }
 
     public boolean inputClosed() {

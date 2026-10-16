@@ -2,12 +2,14 @@
  * Game: game state and rules.
  */
 import java.util.ArrayList;
+import java.util.HashSet;
 import java.util.Random;
+import java.util.Set;
 
 public class Game {
 
-    public static final int FIELD_W = 200;
-    public static final int FIELD_H = 43;
+    public static final int FIELD_W = 240;
+    public static final int FIELD_H = 47;
     public static final int MAX_DEPTH = 30;
     public static final int SUB_COL = 10;
     public static final int TOP_ROW = 3;
@@ -20,9 +22,10 @@ public class Game {
     public static final int MIN_LEVEL = 1;
     public static final int START_DEPTH = 5;
     public static final int SHIP_ROW = 1;
+    public static final int WATER_ROW = SHIP_ROW + 2;
 
     public enum Difficulty {
-        EASY(1.4, 2, 8), NORMAL(1.0, 4, 6), HARD(0.65, 8, 4);
+        EASY(1.4, 1, 8), NORMAL(1.0, 2, 6), HARD(0.65, 4, 4);
 
         final double spawnInterval;
         final int maxSubmarines;
@@ -57,6 +60,9 @@ public class Game {
     private int subCol = SUB_COL;
     private int forwardSpeed = Weapons.PLAYER_FORWARD_SPEED;
     private final Submarine submarine = new Submarine();
+    private final Sonar sonar = new Sonar();
+    private final Set<Enemy> detectedEnemies = new HashSet<>();
+    private final Set<Projectile> detectedProjectiles = new HashSet<>();
     private int level = MIN_LEVEL;
     private boolean running = true;
     private StopReason stopReason;
@@ -81,6 +87,7 @@ public class Game {
     private long distance;
     private int torpedoCooldown;
     private int kills;
+    private int nextGroundHit;
 
     public Game() {
         this(new Random().nextLong());
@@ -169,7 +176,7 @@ public class Game {
         return isAboveFloor(left, right, row, 1);
     }
 
-    private boolean isAboveFloor(int left, int right, int row, int height) {
+    boolean isAboveFloor(int left, int right, int row, int height) {
         int visibleLeft = Math.max(0, left);
         int visibleRight = Math.min(FIELD_W - 1, right);
         int bottom = row + height - 1;
@@ -197,12 +204,15 @@ public class Game {
             torpedoCooldown--;
         }
         moveDepth();
+        sonar.update(frame, scrollStep, subBoxLeft() + 22, subBoxTop(subRow()) + 2,
+                submarine.isActive(Submarine.Module.SONAR));
         spawnEnemies();
         for (Enemy e : enemies) {
             if (e.isAlive()) {
                 e.update(this);
                 if (!isAboveFloor(e.getX(), e.getX() + e.width() - 1, e.getY(), e.height())) {
-                    e.kill();
+                    e.hitSeabed(this, highestFloorRow(Math.max(0, e.getX()),
+                            Math.min(FIELD_W - 1, e.getX() + e.width() - 1)) - e.height());
                 }
                 if (e.isAlive() && e instanceof WeaponCarrier carrier) {
                     carrier.tryAttack(this);
@@ -217,9 +227,21 @@ public class Game {
         for (Explosion ex : explosions) {
             ex.tick();
         }
+        for (Enemy enemy : enemies) {
+            if (sonar.detects(enemy.getX(), enemy.getY(), enemy.width(), enemy.height(), frame)) {
+                detectedEnemies.add(enemy);
+            }
+        }
+        for (Projectile projectile : projectiles) {
+            if (projectile instanceof DepthCharge
+                    && sonar.detects(projectile.getX(), projectile.getY(), projectile.width(), 1, frame)) {
+                detectedProjectiles.add(projectile);
+            }
+        }
         checkProjectileCollisions();
         checkEnemyCollisions();
         collectExplosionZones();
+        submarine.update(frame);
         removeDead();
         if (hull <= 0) {
             hull = 0;
@@ -239,6 +261,10 @@ public class Game {
                     subBoxTop(subRow()) + Submarine.TORPEDO_ROW, true));
             torpedoCooldown = Weapons.TORPEDO_COOLDOWN;
         }
+    }
+
+    public void repair() {
+        if (running && hull > 0) submarine.startRepair();
     }
 
     private void advanceForward() {
@@ -279,6 +305,24 @@ public class Game {
         return submarine;
     }
 
+    public Sonar getSonar() {
+        return sonar;
+    }
+
+    public boolean isVisible(int x, int y) {
+        return submarine.isActive(Submarine.Module.SONAR) && sonar.isVisible(x, y, frame);
+    }
+
+    public boolean isDetected(Enemy enemy) {
+        return submarine.isActive(Submarine.Module.SONAR)
+                && detectedEnemies.contains(enemy);
+    }
+
+    public boolean isDetected(Projectile projectile) {
+        return submarine.isActive(Submarine.Module.SONAR)
+                && detectedProjectiles.contains(projectile);
+    }
+
     public long getDistance() {
         return distance;
     }
@@ -288,10 +332,19 @@ public class Game {
     }
 
     public void diveDown() {
-        if (submarine.isActive(Submarine.Module.ENGINE)) targetDepth = Math.min(maxDepth(), targetDepth + 1);
+        if (submarine.isActive(Submarine.Module.ENGINE)) targetDepth = Math.min(MAX_DEPTH, targetDepth + 1);
     }
 
     private void moveDepth() {
+        int limit = maxDepth();
+        if ((depth > limit || targetDepth > limit && depth >= limit) && frame >= nextGroundHit) {
+            int hitX = subBoxLeft();
+            for (int x = hitX + 1; x <= subBoxRight(); x++) {
+                if (floor.heightAt(x) < floor.heightAt(hitX)) hitX = x;
+            }
+            damageHullAt(Weapons.GROUND_DAMAGE, hitX, subBoxBottom(subRow()));
+            nextGroundHit = frame + TICKS_PER_SECOND;
+        }
         clampToWater();
         if (!submarine.isActive(Submarine.Module.ENGINE)) return;
         double d = targetDepth - depth;
@@ -392,15 +445,18 @@ public class Game {
 
     private boolean hitEnemyAt(Projectile projectile, int x, int y) {
         for (Enemy enemy : enemies) {
-            if (enemy.isAlive() && pointInBox(x, y, enemy.getX(), enemy.getY(),
-                    enemy.getX() + enemy.width() - 1, enemy.getY() + enemy.height() - 1)) {
-                enemy.kill();
+            if (enemy.isAlive() && enemy.contains(x, y)) {
+                damageEnemy(enemy, Weapons.TORPEDO_DAMAGE, x, y, 1);
                 projectile.hit(this, x, y, false);
-                kills++;
                 return true;
             }
         }
         return false;
+    }
+
+    private void damageEnemy(Enemy enemy, int amount, int x, int y, int direction) {
+        enemy.damageAt(amount, x, y, direction);
+        if (!enemy.isAlive()) kills++;
     }
 
     private void checkEnemyCollisions() {
@@ -412,6 +468,7 @@ public class Game {
             int er = e.getX() + e.width() - 1;
             if (overlapsHull(el, e.getY(), er, e.getY() + e.height() - 1)) {
                 e.onContact(this);
+                if (!e.isAlive() && !(e instanceof EnemyMine)) kills++;
             }
         }
     }
@@ -424,14 +481,25 @@ public class Game {
     }
 
     public void damageHullAt(int damage, int x, int y) {
-        damageHull(damage);
+        damageHullAt(damage, x, y, 0);
+    }
+
+    public void damageHullAt(int damage, int x, int y, int direction) {
         Submarine.Point point = submarine.closestPoint(x - subBoxLeft(), y - subBoxTop(subRow()));
-        submarine.damageAt(point.col(), point.row(), damage);
+        damageLocalHull(damage, point.col(), point.row(), direction);
+    }
+
+    private void damageLocalHull(int damage, int col, int row, int direction) {
+        int before = submarine.getHull();
+        submarine.damageAt(col, row, damage, direction);
+        damageHull(Math.max(0, before - submarine.getHull()));
     }
 
     private void removeDead() {
         enemies.removeIf(e -> !e.isAlive());
         projectiles.removeIf(p -> !p.isAlive());
+        detectedEnemies.retainAll(enemies);
+        detectedProjectiles.retainAll(projectiles);
         explosions.removeIf(ex -> ex.isDone() || ex.getX() + ex.getHorizontalRadius() < 0
                 || ex.getX() - ex.getHorizontalRadius() >= FIELD_W);
         if (activeShip != null && !activeShip.isAlive()) {
@@ -455,6 +523,20 @@ public class Game {
     }
 
     public void addExplosion(Explosion explosion) {
+        if (explosion.damagesPlayer()) {
+            for (Enemy enemy : enemies) {
+                if (!enemy.isAlive()) continue;
+                int hitX = Math.max(enemy.getX(), Math.min(enemy.getX() + enemy.width() - 1, explosion.getX()));
+                int hitY = Math.max(enemy.getY(), Math.min(enemy.getY() + enemy.height() - 1, explosion.getY()));
+                if (enemy.getVessel() != null) {
+                    Submarine.Point point = enemy.getVessel().closestPoint(explosion.getX() - enemy.getX(), explosion.getY() - enemy.getY());
+                    hitX = enemy.getX() + point.col();
+                    hitY = enemy.getY() + point.row();
+                }
+                int damage = ExplosionWorker.damageAt(hitX - explosion.getX(), hitY - explosion.getY());
+                if (damage > 0) damageEnemy(enemy, damage, hitX, hitY, 0);
+            }
+        }
         // Capture the hull at impact so worker timing cannot change the damage.
         Submarine.Point point = submarine.closestPoint(explosion.getX() - subBoxLeft(),
                 explosion.getY() - subBoxTop(subRow()));
@@ -479,8 +561,7 @@ public class Game {
     }
 
     private void acceptExplosionZone(ExplosionWorker.Zone zone) {
-        damageHull(zone.damage());
-        submarine.damageAt(zone.impact().localX(), zone.impact().localY(), zone.damage());
+        damageLocalHull(zone.damage(), zone.impact().localX(), zone.impact().localY(), 0);
         Explosion explosion = new Explosion(zone, (int) (distance - zone.impact().distance()),
                 frame - zone.impact().frame());
         if (!explosion.isDone() && zone.impact().level() == level) {
@@ -572,7 +653,8 @@ public class Game {
             return null;
         }
         return switch (stopReason) {
-            case HULL_BROKEN -> "Hull broken: destroyed at depth " + getDepth();
+            case HULL_BROKEN -> "Hull broken: " + (submarine.isNavigationHit() ? "NAV destroyed" : "local breach")
+                    + " at depth " + getDepth();
             case QUIT -> "Quit: player pressed 0";
             case EOF -> "Input stream ended (EOF)";
             case INTERRUPTED -> "Interrupted";

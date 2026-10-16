@@ -83,11 +83,15 @@ public final class ExplosionWorker implements AutoCloseable {
             }
             frames.add(sprite);
         }
-        double distance = blastDistance(impact.hullX() - impact.x(), impact.hullY() - impact.y());
-        int damage = impact.damagesPlayer() && distance <= radius
-                ? Math.max(0, Weapons.EXPLOSION_MAX_DAMAGE - (int) Math.ceil(distance * Weapons.EXPLOSION_DAMAGE_STEP))
-                : 0;
+        int damage = impact.damagesPlayer() ? damageAt(impact.hullX() - impact.x(), impact.hullY() - impact.y()) : 0;
         return new Zone(impact, radius, frames, damage);
+    }
+
+    static int damageAt(int dx, int dy) {
+        double distance = blastDistance(dx, dy);
+        int radius = (Weapons.EXPLOSION_MAX_DAMAGE - 1) / Weapons.EXPLOSION_DAMAGE_STEP;
+        return distance <= radius ? Math.max(0, Weapons.EXPLOSION_MAX_DAMAGE
+                - (int) Math.ceil(distance * Weapons.EXPLOSION_DAMAGE_STEP)) : 0;
     }
 
     private static double blastDistance(int dx, int dy) {

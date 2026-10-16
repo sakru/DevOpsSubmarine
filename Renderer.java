@@ -48,7 +48,7 @@ public class Renderer implements AutoCloseable {
         moveToLine(frame, 1);
         Submarine sub = game.getSubmarine();
         int enemies = 0;
-        for (Enemy enemy : game.getEnemies()) if (enemy.isAlive()) enemies++;
+        for (Enemy enemy : game.getEnemies()) if (game.isDetected(enemy)) enemies++;
         appendText(frame, "Hull:" + game.getHull() + "% ENG:" + sub.getHealth(Submarine.Module.ENGINE)
                 + " SON:" + sub.getHealth(Submarine.Module.SONAR)
                 + " TOR:" + sub.getHealth(Submarine.Module.TORPEDO)
@@ -73,7 +73,9 @@ public class Renderer implements AutoCloseable {
         moveToLine(frame, camera.height() + 3);
         frame.append(border()).append("\033[K");
         moveToLine(frame, camera.height() + 4);
-        appendText(frame, "Depth:" + game.getDepth() + "/" + Game.MAX_DEPTH
+        appendText(frame, "Crew:" + sub.getCrew().getLiving() + "/100 "
+                + (sub.getRepairing() == null ? "R:repair" : "R:" + sub.getRepairing() + " " + sub.getRepairSeconds() + "s")
+                + " Depth:" + game.getDepth() + "/" + Game.MAX_DEPTH
                 + " Lv:" + game.getLevel() + " W/S:depth A/D:speed F/Space:fire 0:quit");
 
         System.out.print(frame);
@@ -91,6 +93,28 @@ public class Renderer implements AutoCloseable {
             }
         }
         return !closed && camera.canFitSubmarine();
+    }
+
+    public synchronized void drawMenu(String... lines) {
+        draw();
+        if (!canDrawGame()) return;
+        int width = 0;
+        for (String line : lines) width = Math.max(width, line.length());
+        width = Math.min(width, camera.width() - 4);
+        int left = (camera.width() - width - 4) / 2 + 2;
+        int top = (camera.height() - lines.length - 2) / 2 + 3;
+        String border = "+" + "-".repeat(width + 2) + "+";
+        StringBuilder panel = new StringBuilder("\033[0m");
+        for (int row = 0; row < lines.length + 2; row++) {
+            panel.append("\033[").append(top + row).append(';').append(left).append('H');
+            if (row == 0 || row == lines.length + 1) panel.append(border);
+            else {
+                String text = lines[row - 1].substring(0, Math.min(width, lines[row - 1].length()));
+                panel.append("| ").append(text).append(" ".repeat(width - text.length())).append(" |");
+            }
+        }
+        System.out.print(panel);
+        System.out.flush();
     }
 
     private void moveToLine(StringBuilder frame, int row) {
@@ -119,26 +143,44 @@ public class Renderer implements AutoCloseable {
                 field[row][col] = camera.top() + row >= game.getFloor().heightAt(camera.left() + col) ? '#' : ' ';
             }
         }
-        for (int row = 0; row < Submarine.HEIGHT; row++) {
-            drawLine(field, game.subBoxLeft(), game.subBoxTop(game.subRow()) + row,
-                    game.getSubmarine().renderLine(row), false);
-            int y = game.subBoxTop(game.subRow()) + row - camera.top();
-            if (y < 0 || y >= field.length) continue;
-            for (int col = 0; col < Submarine.WIDTH; col++) {
-                int x = game.subBoxLeft() + col - camera.left();
-                if (x >= 0 && x < camera.width()) colors[y][x] = game.getSubmarine().damageColor(col, row);
+        for (int row = 0; row < field.length; row++) {
+            for (int col = 0; col < field[row].length; col++) {
+                int x = camera.left() + col;
+                int y = camera.top() + row;
+                if (y == Game.WATER_ROW) {
+                    field[row][col] = '~';
+                    colors[row][col] = 36;
+                } else if (game.isVisible(x, y)) colors[row][col] = game.getSonar().echoColor(x, y, game.getFrame());
+                else field[row][col] = ' ';
             }
         }
         for (Enemy enemy : game.getEnemies()) {
-            String[] sprite = enemy.spriteLines();
-            for (int row = 0; row < sprite.length; row++) {
-                drawLine(field, enemy.getX(), enemy.getY() + row, sprite[row], false);
+            if (!game.isDetected(enemy)) continue;
+            if (enemy.getVessel() != null) {
+                drawVessel(field, enemy.getVessel(), enemy.getX(), enemy.getY());
+            } else {
+                String[] sprite = enemy.spriteLines();
+                for (int row = 0; row < sprite.length; row++) {
+                    drawLine(field, enemy.getX(), enemy.getY() + row, sprite[row], false);
+                }
             }
         }
         for (Projectile projectile : game.getProjectiles()) {
-            drawLine(field, projectile.getX(), projectile.getY(), projectile.sprite(), false);
+            if (projectile instanceof DepthCharge && game.isDetected(projectile)) {
+                drawLine(field, projectile.getX(), projectile.getY(), projectile.sprite(), false);
+            }
         }
-        if (game.getSubmarine().isActive(Submarine.Module.SONAR)) drawEnemyIndicators(field);
+        drawWave(field, game.getSonar(), 32);
+        for (Enemy enemy : game.getEnemies()) {
+            if (enemy instanceof EnemySub sub) drawWave(field, sub.getSonar(), 36);
+        }
+        drawVessel(field, game.getSubmarine(), game.subBoxLeft(), game.subBoxTop(game.subRow()));
+        for (Projectile projectile : game.getProjectiles()) {
+            if (!(projectile instanceof DepthCharge)) {
+                drawLine(field, projectile.getX(), projectile.getY(), projectile.sprite(), false);
+            }
+        }
+        drawEnemyIndicators(field);
         for (Explosion explosion : game.getExplosions()) {
             List<String> sprite = explosion.spriteLines();
             for (int row = 0; row < sprite.size(); row++) {
@@ -149,10 +191,36 @@ public class Renderer implements AutoCloseable {
         return field;
     }
 
+    private void drawVessel(char[][] field, Submarine vessel, int left, int top) {
+        for (int row = 0; row < vessel.height(); row++) {
+            drawLine(field, left, top + row, vessel.renderLine(row), false);
+            int y = top + row - camera.top();
+            if (y < 0 || y >= field.length) continue;
+            for (int col = 0; col < vessel.width(); col++) {
+                int x = left + col - camera.left();
+                if (x >= 0 && x < camera.width()) colors[y][x] = vessel.damageColor(col, row);
+            }
+        }
+    }
+
+    private void drawWave(char[][] field, Sonar sonar, int color) {
+        for (int row = 0; row < field.length; row++) {
+            for (int col = 0; col < field[row].length; col++) {
+                int x = camera.left() + col;
+                int y = camera.top() + row;
+                if (game.isVisible(x, y) && sonar.isWaveAt(x, y)) {
+                    if (field[row][col] == ' ') field[row][col] = '.';
+                    colors[row][col] = color;
+                }
+            }
+        }
+    }
+
     private void drawEnemyIndicators(char[][] field) {
         int right = camera.left() + camera.width() - 1;
         int bottom = camera.top() + camera.height() - 1;
         for (Enemy enemy : game.getEnemies()) {
+            if (!game.isDetected(enemy)) continue;
             int enemyRight = enemy.getX() + enemy.width() - 1;
             int enemyBottom = enemy.getY() + enemy.height() - 1;
             if (enemy.getX() <= right && enemyRight >= camera.left()
