@@ -5,23 +5,31 @@ public class ExplosionIntegrationTest {
     public static void main(String[] args) throws InterruptedException {
         try (ExplosionWorker worker = new ExplosionWorker()) {
             Game game = new Game(1L, false, worker);
-            EnemyMine mine = new EnemyMine(game.subBoxRight(), game.subRow());
+            EnemyMine mine = new EnemyMine(game.subBoxRight(), hitRow(game));
             game.addEnemy(mine);
             game.update();
             check(!mine.isAlive(), "Contact must detonate the mine");
             awaitExplosion(game);
             check(game.getHull() == 25, "Mine must deal 75 damage once");
             check(countExplosions(game) == 1, "Mine must produce one explosion");
-            game.update();
-            game.update();
-            check(render(game).contains(".+*+."), "Renderer must draw the worker's damage zone");
+            Explosion blast = game.getExplosions().iterator().next();
+            String frame = render(game);
+            String rowPrefix = "\033[" + (blast.getY() + 2) + ";1H|";
+            int start = frame.indexOf(rowPrefix) + rowPrefix.length();
+            String centre = blast.spriteLines().get(blast.getRadius());
+            for (int x = 0; x < centre.length(); x++) {
+                if (centre.charAt(x) != ' ') {
+                    check(frame.charAt(start + blast.getX() - blast.getHorizontalRadius() + x) == centre.charAt(x),
+                            "Renderer must draw the worker's current animation phase");
+                }
+            }
             for (int i = 0; i < Weapons.EXPLOSION_VISUAL_FRAMES; i++) game.update();
             check(game.getHull() == 25, "Animation must not deal repeated damage");
             check(countExplosions(game) == 0, "Explosion must expire");
         }
         try (ExplosionWorker worker = new ExplosionWorker()) {
             Game game = new Game(1L, false, worker);
-            game.addProjectile(new Torpedo(game.subBoxRight() + 1, game.subRow()));
+            game.addProjectile(new Torpedo(game.subBoxRight() + 1, hitRow(game)));
             game.update();
             awaitExplosion(game);
             check(game.getHull() == 90, "Torpedo must keep its direct damage without extra blast damage");
@@ -29,9 +37,9 @@ public class ExplosionIntegrationTest {
         }
         try (ExplosionWorker worker = new ExplosionWorker()) {
             Game game = new Game(1L, false, worker);
-            EnemyMine target = new EnemyMine(game.subBoxRight() + 9, game.subRow());
+            EnemyMine target = new EnemyMine(game.subBoxRight() + 9, hitRow(game));
             game.addEnemy(target);
-            game.addProjectile(new Torpedo(game.subBoxRight() + 7, game.subRow(), true));
+            game.addProjectile(new Torpedo(game.subBoxRight() + 7, hitRow(game), true));
             game.update();
             awaitExplosion(game);
             check(!target.isAlive() && game.getKills() == 1, "Player torpedo must destroy its target");
@@ -40,7 +48,7 @@ public class ExplosionIntegrationTest {
         }
         try (ExplosionWorker worker = new ExplosionWorker()) {
             Game game = new Game(1L, false, worker);
-            DepthCharge charge = new DepthCharge(game.subBoxRight(), game.subRow());
+            DepthCharge charge = new DepthCharge(game.subBoxRight(), hitRow(game));
             game.addProjectile(charge);
             game.update();
             awaitExplosion(game);
@@ -56,13 +64,17 @@ public class ExplosionIntegrationTest {
         }
         try (ExplosionWorker worker = new ExplosionWorker()) {
             Game game = new Game(1L, false, worker);
-            game.addExplosion(new Explosion(game.subBoxRight() + 2, game.subRow()));
+            game.addExplosion(new Explosion(game.subBoxRight() + 4, hitRow(game)));
             // Move the hull away before delivery; damage uses the position at detonation.
             for (int i = 0; i < 5; i++) game.diveUp();
             awaitExplosion(game);
             check(game.getHull() == 75, "Damage at the outer ring must use the captured hull position");
         }
         System.out.println("Explosion integration checks passed");
+    }
+
+    private static int hitRow(Game game) {
+        return game.subBoxTop(game.subRow()) + Submarine.TORPEDO_ROW;
     }
 
     private static void awaitExplosion(Game game) throws InterruptedException {
@@ -85,7 +97,7 @@ public class ExplosionIntegrationTest {
         ByteArrayOutputStream output = new ByteArrayOutputStream();
         try (PrintStream capture = new PrintStream(output)) {
             System.setOut(capture);
-            try (Renderer renderer = new Renderer(game)) {
+            try (Renderer renderer = new Renderer(game, Game.FIELD_W + 2, Game.FIELD_H + 4)) {
                 renderer.draw();
             }
         } finally {

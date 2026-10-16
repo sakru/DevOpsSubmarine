@@ -1,65 +1,40 @@
 # DevOpsSubmarine
 
-A submarine game in the terminal, written in Java for the DEV26M_PJ-2 final project.
+Java console game · DEV26M_PJ-2 · Vyacheslav Kuznetsov
 
-Move up and down, fire torpedoes, and avoid enemy submarines, mines and depth
-charges dropped by surface ships. The seabed scrolls as you move forward.
-There are 12 difficulty levels. The game ends when the hull reaches zero.
+## Run
 
-Author: Vyacheslav Kuznetsov
+JDK 17+, ANSI terminal. Start with `./run.sh`.
 
-## Running the game
+## Controls
 
-You need JDK 17 or newer and a terminal with ANSI support.
+- W/S, arrows: depth.
+- A/D: brake/accelerate.
+- Space/F: torpedo; reload takes 3 seconds for both sides.
+- 0: quit.
 
-```sh
-./run.sh
-```
+## Game
 
-The script compiles the Java files into `build/` and starts the game.
-You can set `JAVA_HOME` to choose a JDK.
+- Map: 200×43; camera follows the submarine and resizes with the terminal.
+- 12 levels; at most two enemy submarines.
+- Yellow: hull damage. Red: damaged module. Modules stop working at 0%.
+- Engine: movement. Sonar: off-screen contacts. Torpedo room: firing.
+- Explosions: circular blast area with falling damage over distance.
 
-The field is 160 × 36 characters. With borders and status lines, the terminal
-needs at least 162 columns and 40 rows.
+## Code
 
-- W/S or up/down arrows: change depth
-- Space or F: fire a torpedo
-- 0: quit
+- `Main`: game loop, 25 ticks/s.
+- `Game`: movement, spawning, collisions and damage.
+- `Controller`: keyboard input queue.
+- `Renderer`, `Camera`, `TerminalSize`: display and viewport.
+- `Submarine`: rooms, collision shape and module condition.
+- `Enemy.java`: superclass `Enemy`, three subclasses and `DepthCharge`.
+- `WeaponCarrier`: polymorphic attacks for ships and enemy submarines.
+- `Projectile`, `Torpedo`: projectile movement and impacts.
+- `Explosion`, `ExplosionWorker`: animation and blast calculations; worker thread `explosions`.
+- `SeaFloor`, `Weapons`: terrain and tuning constants.
 
-## How the code is organised
+## Tests
 
-`Main` runs the game loop. `Controller` handles keyboard input, `Game` updates
-the game state, and `Renderer` draws it. Movement and collision rules are in
-`Game`, so they can run without the terminal display.
-
-`Enemy` is the abstract superclass for `EnemyShip`, `EnemySub` and `EnemyMine`.
-They share position and alive/dead state, but each overrides `update()` and
-`sprite()`. The enemies are stored in an `ArrayList<Enemy>`. When the game loops
-through it, polymorphism calls the matching implementation for each enemy.
-The same collection is searched for collisions and cleaned up when enemies die.
-
-Ships and enemy submarines implement the `WeaponCarrier` interface. The game
-calls `tryAttack()` through this interface. Mines explode on contact instead,
-so they do not need to implement it.
-
-`Projectile` contains the common movement code for `Torpedo` and `DepthCharge`.
-Depth charges stay in their drop column; torpedoes also move with the scrolling
-world. `SeaFloor` generates the terrain, `Explosion` calculates blast damage,
-and `Weapons` contains speeds, cooldowns and damage values.
-
-## Still to do
-
-The game has keyboard controls, but it does not yet have the collection menu
-required by the assignment. Adding, removing and searching enemies will need
-to use the same game state. Input errors also need clearer messages.
-
-## Movement test
-
-After building the game, run:
-
-```sh
-java -cp build tests/ProjectileMovementTest.java
-```
-
-This checks falling speed, scrolling and the previous projectile positions
-used for collision detection.
+Build with `./run.sh`, then `javac -cp build -d build tests/*.java`.
+Run a check with `java -cp build CameraTest` (or another class from `tests/`).

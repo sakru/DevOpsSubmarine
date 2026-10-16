@@ -26,7 +26,9 @@ public class Main {
                     game.stop(Game.StopReason.EOF);
                     break;
                 }
-                game.update();
+                if (renderer.canDrawGame()) {
+                    game.update();
+                }
                 renderer.draw();
                 pauseForFrame(frameStarted);
                 if (Thread.currentThread().isInterrupted()) {

@@ -8,7 +8,12 @@ import java.util.concurrent.LinkedBlockingQueue;
 public final class ExplosionWorker implements AutoCloseable {
 
     public record Impact(int x, int y, int hullX, int hullY, boolean damagesPlayer,
-                         long distance, int frame, int level) {}
+                         long distance, int frame, int level, int localX, int localY) {
+        public Impact(int x, int y, int hullX, int hullY, boolean damagesPlayer,
+                      long distance, int frame, int level) {
+            this(x, y, hullX, hullY, damagesPlayer, distance, frame, level, 0, 0);
+        }
+    }
     public record Zone(Impact impact, int radius, List<List<String>> frames, int damage) {
         public Zone {
             frames = frames.stream().map(List::copyOf).toList();
@@ -23,7 +28,7 @@ public final class ExplosionWorker implements AutoCloseable {
     private final Thread worker;
 
     public ExplosionWorker() {
-        worker = new Thread(this::run, "Взрывы");
+        worker = new Thread(this::run, "explosions");
         worker.setDaemon(true);
         worker.start();
     }
@@ -58,13 +63,19 @@ public final class ExplosionWorker implements AutoCloseable {
             List<String> sprite = new ArrayList<>();
             for (int dy = -radius; dy <= radius; dy++) {
                 StringBuilder row = new StringBuilder();
-                for (int dx = -radius; dx <= radius; dx++) {
-                    int ring = Math.max(Math.abs(dx), Math.abs(dy));
-                    char cell = ring == radius ? '.' : ' ';
+                int horizontalRadius = radius * Weapons.EXPLOSION_COLUMN_SCALE;
+                for (int dx = -horizontalRadius; dx <= horizontalRadius; dx++) {
+                    double distance = blastDistance(dx, dy);
+                    if (distance > radius) {
+                        row.append(' ');
+                        continue;
+                    }
+                    boolean centre = dx == 0 && dy == 0;
+                    char cell = distance >= radius - 0.5 ? '.' : ' ';
                     if (phase == 3) {
-                        if (ring == 0) cell = '.';
-                    } else if (ring <= phase) {
-                        cell = ring == 0 ? (phase == 2 ? '@' : '*') : ring == phase ? '+' : '*';
+                        if (centre) cell = '.';
+                    } else if (distance <= phase) {
+                        cell = centre ? (phase == 2 ? '@' : '*') : distance >= phase - 0.5 ? '+' : '*';
                     }
                     row.append(cell);
                 }
@@ -72,12 +83,15 @@ public final class ExplosionWorker implements AutoCloseable {
             }
             frames.add(sprite);
         }
-        int distance = Math.max(Math.abs(impact.hullX() - impact.x()),
-                Math.abs(impact.hullY() - impact.y()));
-        int damage = impact.damagesPlayer()
-                ? Math.max(0, Weapons.EXPLOSION_MAX_DAMAGE - distance * Weapons.EXPLOSION_DAMAGE_STEP)
+        double distance = blastDistance(impact.hullX() - impact.x(), impact.hullY() - impact.y());
+        int damage = impact.damagesPlayer() && distance <= radius
+                ? Math.max(0, Weapons.EXPLOSION_MAX_DAMAGE - (int) Math.ceil(distance * Weapons.EXPLOSION_DAMAGE_STEP))
                 : 0;
         return new Zone(impact, radius, frames, damage);
+    }
+
+    private static double blastDistance(int dx, int dy) {
+        return Math.hypot(dx / (double) Weapons.EXPLOSION_COLUMN_SCALE, dy);
     }
 
     @Override

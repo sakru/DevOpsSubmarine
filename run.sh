@@ -49,7 +49,16 @@ if ! "$JAVAC" -d build *.java; then
     exit 1
 fi
 
+set --
 if [ -t 0 ] && [ -t 1 ]; then
+    TERMINAL_SIZE="$(stty size)"
+    TERMINAL_ROWS="${TERMINAL_SIZE%% *}"
+    TERMINAL_COLUMNS="${TERMINAL_SIZE##* }"
+    if [ "$TERMINAL_ROWS" -gt 0 ] && [ "$TERMINAL_COLUMNS" -gt 0 ]; then
+        TERMINAL_DEVICE="$(tty)"
+        set -- "-Dgame.rows=$TERMINAL_ROWS" "-Dgame.columns=$TERMINAL_COLUMNS" \
+            "-Dgame.terminal=$TERMINAL_DEVICE"
+    fi
     TERMINAL_STATE="$(stty -g)"
     trap 'stty "$TERMINAL_STATE" 2>/dev/null || true' EXIT
     trap 'exit 129' HUP
@@ -58,4 +67,4 @@ if [ -t 0 ] && [ -t 1 ]; then
     stty -icanon -echo min 1 time 0
 fi
 
-"$JAVA" -cp build Main
+"$JAVA" "$@" -cp build Main

@@ -8,7 +8,7 @@ public class ExplosionWorkerTest {
             if (worker.pollZone() != null) throw new AssertionError("Duplicate zone");
         }
         boolean alive = Thread.getAllStackTraces().keySet().stream()
-                .anyMatch(thread -> thread.getName().equals("Взрывы") && thread.isAlive());
+                .anyMatch(thread -> thread.getName().equals("explosions") && thread.isAlive());
         if (alive) throw new AssertionError("Worker must stop on close");
         System.out.println("Explosion worker checks passed");
     }
@@ -28,7 +28,7 @@ public class ExplosionWorkerTest {
         if (zone.x() != x || zone.y() != y || zone.radius() != 2) {
             throw new AssertionError("Unexpected explosion zone: " + zone);
         }
-        if (!zone.frames().get(1).get(2).equals(".+*+.")) {
+        if (!zone.frames().get(1).get(2).equals("..++*++..")) {
             throw new AssertionError("Explosion must show its centre and damage rings");
         }
         Explosion scrolled = new Explosion(zone, 4, 2);

@@ -55,6 +55,10 @@ public class Explosion {
         return radius;
     }
 
+    public int getHorizontalRadius() {
+        return radius * Weapons.EXPLOSION_COLUMN_SCALE;
+    }
+
     public List<String> spriteLines() {
         if (isDone()) return List.of();
         int age = Weapons.EXPLOSION_VISUAL_FRAMES - framesLeft;

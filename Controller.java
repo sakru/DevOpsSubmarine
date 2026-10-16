@@ -1,7 +1,3 @@
-/**
- * Controller:
-
- */
 import java.io.IOException;
 import java.io.InputStream;
 import java.util.concurrent.ConcurrentLinkedQueue;
@@ -11,28 +7,20 @@ public class Controller {
     private static final int EOF = -1;
 
     private final Game game;
-    private final InputStream in;
 
     private final ConcurrentLinkedQueue<Integer> inputQueue = new ConcurrentLinkedQueue<>();
-    private Thread reader;
+    private final Thread reader;
     private int escapeState;
 
     private volatile boolean quitRequested = false;
     private volatile boolean inputClosed = false;
-    private volatile boolean shutdownDone = false;
 
     public Controller(Game game) {
         this(game, System.in);
     }
 
-
     public Controller(Game game, InputStream in) {
         this.game = game;
-        this.in = in;
-        startReader();
-    }
-
-    private void startReader() {
         reader = new Thread(() -> {
             try {
                 int b;
@@ -48,7 +36,6 @@ public class Controller {
         reader.setDaemon(true);
         reader.start();
     }
-
 
     public void poll() {
         Integer b;
@@ -89,6 +76,8 @@ public class Controller {
         switch (c) {
             case 'w', 'W' -> game.diveUp();
             case 's', 'S' -> game.diveDown();
+            case 'a', 'A' -> game.brake();
+            case 'd', 'D' -> game.accelerate();
             case ' ', 'f', 'F' -> game.fireTorpedo();
             case '0' -> requestQuit();
             case 4 -> inputClosed = true;
@@ -110,19 +99,11 @@ public class Controller {
     }
 
     public void shutdown() {
-        if (shutdownDone) {
-            return;
-        }
-        shutdownDone = true;
-        if (reader != null) {
-            reader.interrupt();
-        }
+        reader.interrupt();
         inputQueue.clear();
     }
 
     void awaitDrained(long timeoutMs) throws InterruptedException {
-        if (reader != null) {
-            reader.join(timeoutMs);
-        }
+        reader.join(timeoutMs);
     }
 }

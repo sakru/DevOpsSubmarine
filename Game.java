@@ -6,9 +6,9 @@ import java.util.Random;
 
 public class Game {
 
-    public static final int FIELD_W = 160;
-    public static final int FIELD_H = 36;
-    public static final int MAX_DEPTH = 15;
+    public static final int FIELD_W = 200;
+    public static final int FIELD_H = 43;
+    public static final int MAX_DEPTH = 30;
     public static final int SUB_COL = 10;
     public static final int TOP_ROW = 3;
     public static final int BOTTOM_ROW = FIELD_H - 3;
@@ -41,6 +41,9 @@ public class Game {
     private int targetDepth = START_DEPTH;
     private double depth = START_DEPTH;
     private int hull = 100;
+    private int subCol = SUB_COL;
+    private int forwardSpeed = Weapons.PLAYER_FORWARD_SPEED;
+    private final Submarine submarine = new Submarine();
     private int level = MIN_LEVEL;
     private boolean running = true;
     private StopReason stopReason;
@@ -98,10 +101,6 @@ public class Game {
         return rng;
     }
 
-    public boolean isAutoLevel() {
-        return autoLevel;
-    }
-
     public void setLevel(int level) {
         int l = Math.max(MIN_LEVEL, Math.min(MAX_LEVEL, level));
         if (l == this.level) {
@@ -119,12 +118,6 @@ public class Game {
                 INITIAL_SPAWN_SECONDS - (l - MIN_LEVEL) * SPAWN_STEP_SECONDS);
         spawnEvery = (int) Math.round(TICKS_PER_SECOND * spawnSeconds);
         spawnCounter = 0;
-    }
-
-    private void autoLevelUp() {
-        if (autoLevel && level < MAX_LEVEL && frame % TICKS_PER_LEVEL == 0) {
-            setLevel(level + 1);
-        }
     }
 
     /** Keeps the sub in the water: within field, above the floor, never negative. */
@@ -205,31 +198,39 @@ public class Game {
         for (Explosion ex : explosions) {
             ex.tick();
         }
-        checkCollisions();
+        checkProjectileCollisions();
+        checkEnemyCollisions();
         collectExplosionZones();
         removeDead();
         if (hull <= 0) {
             hull = 0;
             stop(StopReason.HULL_BROKEN);
-        } else {
-            autoLevelUp();
+        } else if (autoLevel && level < MAX_LEVEL && frame % TICKS_PER_LEVEL == 0) {
+            setLevel(level + 1);
         }
     }
 
     public void diveUp() {
-        targetDepth = Math.max(0, targetDepth - 1);
+        if (submarine.isActive(Submarine.Module.ENGINE)) targetDepth = Math.max(0, targetDepth - 1);
     }
 
     public void fireTorpedo() {
-        if (running && hull > 0 && torpedoCooldown == 0) {
-            addProjectile(new Torpedo(subBoxRight() + 1, subRow(), true));
-            torpedoCooldown = Weapons.PLAYER_TORPEDO_COOLDOWN;
+        if (running && hull > 0 && torpedoCooldown == 0 && submarine.isActive(Submarine.Module.TORPEDO)) {
+            addProjectile(new Torpedo(subBoxRight() + 1,
+                    subBoxTop(subRow()) + Submarine.TORPEDO_ROW, true));
+            torpedoCooldown = Weapons.TORPEDO_COOLDOWN;
         }
     }
 
     private void advanceForward() {
-        scrollStep = frame % Weapons.FORWARD_MOVE_INTERVAL == 0
-                ? Weapons.PLAYER_FORWARD_SPEED : 0;
+        if (!submarine.isActive(Submarine.Module.ENGINE)) forwardSpeed = 0;
+        scrollStep = frame % Weapons.FORWARD_MOVE_INTERVAL == 0 ? Weapons.PLAYER_FORWARD_SPEED : 0;
+        if (scrollStep > 0) {
+            int minCol = 1 - Submarine.OFFSET_X;
+            int maxCol = FIELD_W - Submarine.WIDTH - Submarine.OFFSET_X;
+            subCol = Math.max(minCol, Math.min(maxCol,
+                    subCol + forwardSpeed - Weapons.PLAYER_FORWARD_SPEED));
+        }
         distance += scrollStep;
         floor.scrollLeft(scrollStep, rng);
         for (Explosion explosion : explosions) {
@@ -241,6 +242,24 @@ public class Game {
         return scrollStep;
     }
 
+    public void accelerate() {
+        if (submarine.isActive(Submarine.Module.ENGINE)) {
+            forwardSpeed = Math.min(Weapons.MAX_PLAYER_FORWARD_SPEED, forwardSpeed + 1);
+        }
+    }
+
+    public void brake() {
+        forwardSpeed = Math.max(0, forwardSpeed - 1);
+    }
+
+    public int getForwardSpeed() {
+        return forwardSpeed;
+    }
+
+    public Submarine getSubmarine() {
+        return submarine;
+    }
+
     public long getDistance() {
         return distance;
     }
@@ -250,11 +269,12 @@ public class Game {
     }
 
     public void diveDown() {
-        targetDepth = Math.min(maxDepth(), targetDepth + 1);
+        if (submarine.isActive(Submarine.Module.ENGINE)) targetDepth = Math.min(maxDepth(), targetDepth + 1);
     }
 
     private void moveDepth() {
         clampToWater();
+        if (!submarine.isActive(Submarine.Module.ENGINE)) return;
         double d = targetDepth - depth;
         if (d == 0) {
             return;
@@ -263,20 +283,10 @@ public class Game {
         depth += Math.signum(d) * step;
     }
 
-    /** Rows from the anchor to the bottom of the hull box. */
-    private static int bottomOffset() {
-        return Submarine.HEIGHT - 1 + Submarine.OFFSET_Y;
-    }
-
-    private int maxDepthAt(int leftCol, int rightCol) {
-        int topFloor = highestFloorRow(leftCol, rightCol);
-        int maxAnchorRow = Math.min(BOTTOM_ROW, topFloor - 1 - bottomOffset());
-        return Math.max(0, rowToDepthFloor(maxAnchorRow));
-    }
-
-
     private int maxDepth() {
-        return maxDepthAt(subBoxLeft(), subBoxRight());
+        int maxAnchor = Math.min(BOTTOM_ROW, highestFloorRow(subBoxLeft(), subBoxRight())
+                - Submarine.HEIGHT - Submarine.OFFSET_Y);
+        return Math.max(0, (int) Math.floor((maxAnchor - TOP_ROW) / ROWS_PER_DEPTH + 1e-9));
     }
 
     private void spawnEnemies() {
@@ -298,15 +308,15 @@ public class Game {
         int bottom = Math.min(SPAWN_ROW_BOTTOM, highestFloorRow(0, FIELD_W - 1) - height);
         int y = SPAWN_ROW_TOP + rng.nextInt(bottom - SPAWN_ROW_TOP + 1);
         if (type == 1) {
-            addEnemy(new EnemySub(FIELD_W - 1, y, rng));
+            addEnemy(new EnemySub(FIELD_W - EnemySub.WIDTH, y, rng));
         } else {
-            addEnemy(new EnemyMine(FIELD_W - 1, y));
+            addEnemy(new EnemyMine(FIELD_W - 3, y));
         }
     }
 
     private void spawnShip() {
         if (activeShip == null && --shipSpawnCooldown <= 0) {
-            addEnemy(new EnemyShip(FIELD_W - 1, SHIP_ROW, rng));
+            addEnemy(new EnemyShip(FIELD_W - EnemyShip.WIDTH, SHIP_ROW, rng));
         }
     }
 
@@ -314,11 +324,6 @@ public class Game {
         int seconds = MIN_SHIP_RESPAWN_SECONDS
                 + rng.nextInt(MAX_SHIP_RESPAWN_SECONDS - MIN_SHIP_RESPAWN_SECONDS + 1);
         return seconds * TICKS_PER_SECOND;
-    }
-
-    private void checkCollisions() {
-        checkProjectileCollisions();
-        checkEnemyCollisions();
     }
 
     private void checkProjectileCollisions() {
@@ -359,8 +364,7 @@ public class Game {
         if (projectile.isPlayerOwned()) {
             return hitEnemyAt(projectile, x, y);
         }
-        if (pointInBox(x, y, subBoxLeft(), subBoxTop(subRow()),
-                subBoxRight(), subBoxBottom(subRow()))) {
+        if (hullContains(x, y)) {
             projectile.hit(this, x, y, true);
             return true;
         }
@@ -387,9 +391,7 @@ public class Game {
             }
             int el = e.getX();
             int er = e.getX() + e.width() - 1;
-            if (boxesOverlap(subBoxLeft(), subBoxTop(subRow()),
-                    subBoxRight(), subBoxBottom(subRow()), el, e.getY(), er,
-                    e.getY() + e.height() - 1)) {
+            if (overlapsHull(el, e.getY(), er, e.getY() + e.height() - 1)) {
                 e.onContact(this);
             }
         }
@@ -402,11 +404,17 @@ public class Game {
         hull = Math.max(0, hull - damage);
     }
 
+    public void damageHullAt(int damage, int x, int y) {
+        damageHull(damage);
+        Submarine.Point point = submarine.closestPoint(x - subBoxLeft(), y - subBoxTop(subRow()));
+        submarine.damageAt(point.col(), point.row(), damage);
+    }
+
     private void removeDead() {
         enemies.removeIf(e -> !e.isAlive());
         projectiles.removeIf(p -> !p.isAlive());
-        explosions.removeIf(ex -> ex.isDone() || ex.getX() + ex.getRadius() < 0
-                || ex.getX() - ex.getRadius() >= FIELD_W);
+        explosions.removeIf(ex -> ex.isDone() || ex.getX() + ex.getHorizontalRadius() < 0
+                || ex.getX() - ex.getHorizontalRadius() >= FIELD_W);
         if (activeShip != null && !activeShip.isAlive()) {
             activeShip = null;
             shipSpawnCooldown = nextShipSpawnCooldown();
@@ -429,10 +437,13 @@ public class Game {
 
     public void addExplosion(Explosion explosion) {
         // Capture the hull at impact so worker timing cannot change the damage.
-        int hullX = Math.max(subBoxLeft(), Math.min(subBoxRight(), explosion.getX()));
-        int hullY = Math.max(subBoxTop(subRow()), Math.min(subBoxBottom(subRow()), explosion.getY()));
+        Submarine.Point point = submarine.closestPoint(explosion.getX() - subBoxLeft(),
+                explosion.getY() - subBoxTop(subRow()));
+        int hullX = subBoxLeft() + point.col();
+        int hullY = subBoxTop(subRow()) + point.row();
         ExplosionWorker.Impact impact = new ExplosionWorker.Impact(explosion.getX(), explosion.getY(),
-                hullX, hullY, explosion.damagesPlayer(), distance, frame, level);
+                hullX, hullY, explosion.damagesPlayer(), distance, frame, level,
+                point.col(), point.row());
         if (explosionWorker == null) {
             acceptExplosionZone(ExplosionWorker.prepare(impact));
         } else {
@@ -450,6 +461,7 @@ public class Game {
 
     private void acceptExplosionZone(ExplosionWorker.Zone zone) {
         damageHull(zone.damage());
+        submarine.damageAt(zone.impact().localX(), zone.impact().localY(), zone.damage());
         Explosion explosion = new Explosion(zone, (int) (distance - zone.impact().distance()),
                 frame - zone.impact().frame());
         if (!explosion.isDone() && zone.impact().level() == level) {
@@ -472,7 +484,20 @@ public class Game {
     // --- geometry -----------------------------------------------------------
 
     public int subBoxLeft() {
-        return SUB_COL + Submarine.OFFSET_X;
+        return subCol + Submarine.OFFSET_X;
+    }
+
+    private boolean hullContains(int x, int y) {
+        return submarine.contains(x - subBoxLeft(), y - subBoxTop(subRow()));
+    }
+
+    private boolean overlapsHull(int left, int top, int right, int bottom) {
+        for (int y = Math.max(top, subBoxTop(subRow())); y <= Math.min(bottom, subBoxBottom(subRow())); y++) {
+            for (int x = Math.max(left, subBoxLeft()); x <= Math.min(right, subBoxRight()); x++) {
+                if (hullContains(x, y)) return true;
+            }
+        }
+        return false;
     }
 
     public int subBoxRight() {
@@ -485,10 +510,6 @@ public class Game {
 
     public int subBoxBottom(int anchorRow) {
         return subBoxTop(anchorRow) + Submarine.HEIGHT - 1;
-    }
-
-    public boolean isAlive() {
-        return hull > 0;
     }
 
     public int getDepth() {
@@ -507,21 +528,8 @@ public class Game {
         return level;
     }
 
-    /** Whole seconds of survival. */
-    public int getSurvivalSeconds() {
-        return frame / TICKS_PER_SECOND;
-    }
-
     public int getFrame() {
         return frame;
-    }
-
-    public int getScore() {
-        return getSurvivalSeconds();
-    }
-
-    public int getSpawnEvery() {
-        return spawnEvery;
     }
 
     public boolean isRunning() {
@@ -556,22 +564,8 @@ public class Game {
     }
 
     public int subRow() {
-        return depthToRow(depth);
-    }
-
-
-    public int depthToRow(double d) {
-        int r = TOP_ROW + (int) Math.round(d * ROWS_PER_DEPTH);
+        int r = TOP_ROW + (int) Math.round(depth * ROWS_PER_DEPTH);
         return Math.max(TOP_ROW, Math.min(BOTTOM_ROW, r));
-    }
-
-    public int rowToDepth(int row) {
-        return (int) Math.round((row - TOP_ROW) / ROWS_PER_DEPTH);
-    }
-
-    public int rowToDepthFloor(int row) {
-        int d = (int) Math.floor((row - TOP_ROW) / ROWS_PER_DEPTH + 1e-9);
-        return Math.max(0, d);
     }
 
     public int getMaxSafeDepth() {
@@ -579,11 +573,6 @@ public class Game {
     }
 
     // --- collision helpers ----------------------------------------------------
-
-    private static boolean boxesOverlap(int x1, int y1, int x2, int y2,
-                                        int x3, int y3, int x4, int y4) {
-        return x1 <= x4 && x3 <= x2 && y1 <= y4 && y3 <= y2;
-    }
 
     private static boolean pointInBox(int px, int py,
                                       int left, int top, int right, int bottom) {
