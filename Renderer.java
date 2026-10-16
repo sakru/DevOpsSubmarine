@@ -53,7 +53,7 @@ public class Renderer implements AutoCloseable {
                 + " SON:" + sub.getHealth(Submarine.Module.SONAR)
                 + " TOR:" + sub.getHealth(Submarine.Module.TORPEDO)
                 + " V:" + game.getForwardSpeed() + " K:" + game.getKills() + " En:"
-                + (sub.isActive(Submarine.Module.SONAR) ? enemies : "--"));
+                + (sub.isActive(Submarine.Module.SONAR) ? enemies : "--") + " " + game.getDifficulty());
         moveToLine(frame, 2);
         frame.append(border()).append("\033[K");
         for (int row = 0; row < field.length; row++) {

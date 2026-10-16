@@ -19,6 +19,7 @@ public final class Submarine {
     public static final int OFFSET_X = -1;
     public static final int OFFSET_Y = -2;
     public static final int TORPEDO_ROW = 4;
+    private static final int MODULE_HEALTH = 50;
 
     static {
         for (int row = 0; row < HEIGHT; row++) SPRITE[row] += " ".repeat(WIDTH - SPRITE[row].length());
@@ -45,7 +46,7 @@ public final class Submarine {
     private final EnumMap<Module, Integer> health = new EnumMap<>(Module.class);
 
     public Submarine() {
-        for (Module module : Module.values()) health.put(module, 100);
+        for (Module module : Module.values()) health.put(module, MODULE_HEALTH);
     }
 
     public static String spriteLine(int row) {
@@ -62,7 +63,7 @@ public final class Submarine {
     }
 
     public int getHealth(Module module) {
-        return health.get(module);
+        return health.get(module) * 100 / MODULE_HEALTH;
     }
 
     public boolean isActive(Module module) {
@@ -70,11 +71,11 @@ public final class Submarine {
     }
 
     public int damageColor(int col, int row) {
-        if (col < 0 || col >= WIDTH || row < 0 || row >= HEIGHT || damage[row][col] == 0) return 0;
+        if (col < 0 || col >= WIDTH || row < 0 || row >= HEIGHT) return 0;
         for (Module module : Module.values()) {
-            if (module.contains(col, row) && getHealth(module) < 100) return 31;
+            if (module.contains(col, row) && getHealth(module) < 100 && SPRITE[row].charAt(col) != ' ') return 31;
         }
-        return 33;
+        return damage[row][col] > 0 ? 33 : 0;
     }
 
     public boolean contains(int col, int row) {

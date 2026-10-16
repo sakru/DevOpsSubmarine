@@ -63,6 +63,22 @@ public class CameraTest {
         check(output.toString().contains("SONAR") && output.toString().contains("ENGINE")
                 && output.toString().contains("TORPEDO"), "Small terminal must preserve module detail");
 
+        contacts.getSubmarine().damageAt(22, 2, 100);
+        output.reset();
+        try (PrintStream capture = new PrintStream(output)) {
+            System.setOut(capture);
+            try (Renderer renderer = new Renderer(contacts, 80, 24)) { renderer.draw(); }
+        } finally {
+            System.setOut(original);
+        }
+        String withoutColor = output.toString().replaceAll("\033\\[[0-9;]*m", "");
+        check(withoutColor.contains("En:--"), "Disabled sonar must hide the contact count");
+        lines = Pattern.compile("\\x1b\\[(\\d+);1H([^\\x1b]*)").matcher(withoutColor);
+        while (lines.find()) {
+            int row = Integer.parseInt(lines.group(1));
+            if (row >= 3 && row <= 22) check(lines.group(2).charAt(78) != '>', "Disabled sonar must hide edge contacts");
+        }
+
         output.reset();
         try (PrintStream capture = new PrintStream(output)) {
             System.setOut(capture);

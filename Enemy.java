@@ -122,10 +122,6 @@ class EnemySub extends Enemy implements WeaponCarrier {
     private int cooldown;
 
     public EnemySub(int x, int y) {
-        this(x, y, new Random());
-    }
-
-    public EnemySub(int x, int y, Random rng) {
         super(x, y);
         cooldown = Weapons.TORPEDO_COOLDOWN;
     }

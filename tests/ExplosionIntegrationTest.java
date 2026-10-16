@@ -103,7 +103,7 @@ public class ExplosionIntegrationTest {
         } finally {
             System.setOut(original);
         }
-        return output.toString();
+        return output.toString().replaceAll("\033\\[[0-9;]*m", "");
     }
 
     private static void check(boolean condition, String message) {

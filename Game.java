@@ -20,7 +20,20 @@ public class Game {
     public static final int MIN_LEVEL = 1;
     public static final int START_DEPTH = 5;
     public static final int SHIP_ROW = 1;
-    public static final int MAX_ENEMY_SUBS = 2;
+
+    public enum Difficulty {
+        EASY(1.4, 2, 8), NORMAL(1.0, 4, 6), HARD(0.65, 8, 4);
+
+        final double spawnInterval;
+        final int maxSubmarines;
+        final int spawnChoices;
+
+        Difficulty(double spawnInterval, int maxSubmarines, int spawnChoices) {
+            this.spawnInterval = spawnInterval;
+            this.maxSubmarines = maxSubmarines;
+            this.spawnChoices = spawnChoices;
+        }
+    }
 
     public enum StopReason { HULL_BROKEN, QUIT, EOF, INTERRUPTED }
 
@@ -57,6 +70,7 @@ public class Game {
     private final Random rng;
     private final boolean autoLevel;
     private final ExplosionWorker explosionWorker;
+    private final Difficulty difficulty;
 
     private int frame = 0;
     private int spawnEvery = 60;
@@ -72,8 +86,8 @@ public class Game {
         this(new Random().nextLong());
     }
 
-    public Game(ExplosionWorker explosionWorker) {
-        this(new Random().nextLong(), true, explosionWorker);
+    public Game(ExplosionWorker explosionWorker, Difficulty difficulty) {
+        this(new Random().nextLong(), true, explosionWorker, difficulty);
     }
 
     public Game(long seed) {
@@ -85,9 +99,14 @@ public class Game {
     }
 
     public Game(long seed, boolean autoLevel, ExplosionWorker explosionWorker) {
+        this(seed, autoLevel, explosionWorker, Difficulty.NORMAL);
+    }
+
+    public Game(long seed, boolean autoLevel, ExplosionWorker explosionWorker, Difficulty difficulty) {
         this.rng = new Random(seed);
         this.autoLevel = autoLevel;
         this.explosionWorker = explosionWorker;
+        this.difficulty = difficulty;
         applyLevel(MIN_LEVEL);
         clampToWater();
         shipSpawnCooldown = nextShipSpawnCooldown();
@@ -116,7 +135,7 @@ public class Game {
         floor = new SeaFloor(l, rng);
         double spawnSeconds = Math.max(MIN_SPAWN_SECONDS,
                 INITIAL_SPAWN_SECONDS - (l - MIN_LEVEL) * SPAWN_STEP_SECONDS);
-        spawnEvery = (int) Math.round(TICKS_PER_SECOND * spawnSeconds);
+        spawnEvery = (int) Math.round(TICKS_PER_SECOND * spawnSeconds * difficulty.spawnInterval);
         spawnCounter = 0;
     }
 
@@ -296,19 +315,19 @@ public class Game {
             return;
         }
         spawnCounter = 0;
-        int type = rng.nextInt(6);
+        int type = rng.nextInt(difficulty.spawnChoices);
         if (type == 0 || type >= 4) {
             return;
         }
         if (type == 1 && enemies.stream()
-                .filter(e -> e.isAlive() && e instanceof EnemySub).count() >= MAX_ENEMY_SUBS) {
+                .filter(e -> e.isAlive() && e instanceof EnemySub).count() >= difficulty.maxSubmarines) {
             return;
         }
         int height = type == 1 ? EnemySub.HEIGHT : 1;
         int bottom = Math.min(SPAWN_ROW_BOTTOM, highestFloorRow(0, FIELD_W - 1) - height);
         int y = SPAWN_ROW_TOP + rng.nextInt(bottom - SPAWN_ROW_TOP + 1);
         if (type == 1) {
-            addEnemy(new EnemySub(FIELD_W - EnemySub.WIDTH, y, rng));
+            addEnemy(new EnemySub(FIELD_W - EnemySub.WIDTH, y));
         } else {
             addEnemy(new EnemyMine(FIELD_W - 3, y));
         }
@@ -323,7 +342,7 @@ public class Game {
     private int nextShipSpawnCooldown() {
         int seconds = MIN_SHIP_RESPAWN_SECONDS
                 + rng.nextInt(MAX_SHIP_RESPAWN_SECONDS - MIN_SHIP_RESPAWN_SECONDS + 1);
-        return seconds * TICKS_PER_SECOND;
+        return (int) Math.round(seconds * TICKS_PER_SECOND * difficulty.spawnInterval);
     }
 
     private void checkProjectileCollisions() {
@@ -530,6 +549,14 @@ public class Game {
 
     public int getFrame() {
         return frame;
+    }
+
+    public int getSurvivalSeconds() {
+        return frame / TICKS_PER_SECOND;
+    }
+
+    public Difficulty getDifficulty() {
+        return difficulty;
     }
 
     public boolean isRunning() {
