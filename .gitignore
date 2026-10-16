@@ -1,3 +1,5 @@
 # Build output
 build/
 *.class
+scores.tsv
+scores.tsv.tmp

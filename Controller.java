@@ -1,5 +1,8 @@
 import java.io.IOException;
 import java.io.InputStream;
+import java.io.InputStreamReader;
+import java.io.Reader;
+import java.nio.charset.StandardCharsets;
 import java.util.concurrent.ConcurrentLinkedQueue;
 
 public class Controller {
@@ -15,12 +18,18 @@ public class Controller {
 
     private volatile boolean quitRequested = false;
     private volatile boolean inputClosed = false;
+    private volatile String inputError;
+    private volatile boolean stopping;
 
     public Controller(Game game) {
         this(game, System.in);
     }
 
     public Controller(Game game, InputStream in) {
+        this(game, new InputStreamReader(in, StandardCharsets.UTF_8));
+    }
+
+    public Controller(Game game, Reader in) {
         this.game = game;
         reader = new Thread(() -> {
             try {
@@ -28,8 +37,8 @@ public class Controller {
                 while (!Thread.currentThread().isInterrupted() && (b = in.read()) != EOF) {
                     inputQueue.offer(b);
                 }
-            } catch (IOException ignored) {
-
+            } catch (IOException e) {
+                if (!stopping) inputError = e.toString();
             } finally {
                 inputClosed = true;
             }
@@ -113,11 +122,16 @@ public class Controller {
         return inputClosed;
     }
 
+    public String inputError() {
+        return inputError;
+    }
+
     public void requestQuit() {
         quitRequested = true;
     }
 
     public void shutdown() {
+        stopping = true;
         reader.interrupt();
         inputQueue.clear();
     }

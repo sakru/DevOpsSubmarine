@@ -1,45 +1,35 @@
 # DevOpsSubmarine
 
-Java console game · DEV26M_PJ-2 · Vyacheslav Kuznetsov
+Java terminal game · DEV26M_PJ-2 · Vyacheslav Kuznetsov
 
-Run: `./run.sh` — JDK 17+, ANSI terminal.
-Menu: New game → Easy (1 submarine), Normal (2), Hard (4). Harder modes spawn enemies more often.
-Menus appear over the scene. After death: frozen last frame, session statistics, restart (1) or exit (0).
+Run `./run.sh` with JDK 17+ and an ANSI terminal. The camera follows the submarine and adapts to the terminal size.
 
-## Controls
+## Playing
 
-- W/S or arrows: depth. A/D: brake/accelerate.
-- Space/F: torpedo. R: repair one module in 5 seconds; press again after completion for the next. 0: quit.
+- W/S or arrows: depth. A/D: brake/accelerate. Space/F: torpedo. 0: quit.
+- R: repair one internal module in 5 seconds; press again after completion for the next. Hull and crew cannot be healed.
+- Easy / Normal / Hard allow 1 / 2 / 4 enemy submarines. Both sides reload in 3 seconds.
+- Map: 240×47, with a waterline and submerged ship hulls that can be hit from depth 0.
+- Automatic sonar reveals terrain and tracks discovered enemies. Enemy submarines scan before lining up a shot.
+- Hull damage stays local. A breached section or a direct NAV hit destroys a vessel; Hull% shows its weakest section.
+- Yellow marks hull damage; red marks damaged modules or breaches. Modules have 50 HP and stop at 0%.
+- Each vessel has 100 sailors. White dots move and repair; red dots are injured or dead. Explosions damage nearby crew.
+- Mines and depth charges deal up to 50 damage; torpedoes deal 50 and can hit a module behind the hull. Seabed contact deals 5 damage at most once per second.
 
-## Game
+## Results
 
-- Map: 240×47; waterline and submerged ship hulls. Surface torpedoes can hit ships.
-- Hull damage is local: a breached section or a hit to NAV destroys the vessel. Hits elsewhere do not add together.
-- Seabed contact: 5 hull damage, at most once per second; vessels stay above the ground.
-- 12 levels; both sides reload in 3 seconds.
-- Yellow: hull damage. Red: module damage or a hull breach. Hull% shows the weakest section; modules stop at 0%.
-- Crew: 100 per vessel, with individual HP. White dots move, flee damage and repair; red dots are injured or dead. Hull cannot be repaired.
-- Enemy vessels use the same local hull damage and module rules.
-- Engine: movement. Sonar: visibility and contacts. Torpedo room: firing.
-- Automatic sonar waves reveal terrain and track discovered boats, mines and depth charges until removed.
-- Enemies scan for the player, align their torpedo tubes, then fire. Cyan waves belong to enemies.
-- Circular explosions; damage decreases with distance.
-- Mines and depth charges: up to 50 damage, blast radius 2 columns / 1 row. Torpedoes: 50 damage; nearby modules behind the hull take the hit too.
+Enter a captain name before playing (default: `Captain`). Finished sessions save automatically, including restarts and quits.
 
-## Code
+The menu can list results, search by captain name, delete a result by ID, and show totals. Rankings use kills, then distance. N/P change pages.
 
-- `Main`, `Menu`: startup, difficulty selection and session statistics.
-- `Game`: movement, spawning, collisions and damage.
-- `Controller`: keyboard input queue.
-- `Renderer`, `Camera`, `TerminalSize`: display and viewport.
-- `Submarine`: vessel geometry, modules, crew and repairs.
-- `Sonar`: automatic waves and explored terrain.
-- `Enemy.java`: superclass `Enemy`, three subclasses and `DepthCharge`.
-- `WeaponCarrier`: polymorphic attacks for ships and enemy submarines.
-- `Projectile`, `Torpedo`: projectile movement and impacts.
-- `Explosion`, `ExplosionWorker`: blast animation and calculations; thread `explosions`.
-- `SeaFloor`, `Weapons`: terrain and tuning constants.
+Results live in `scores.tsv`, excluded from Git. This file store avoids a database dependency for a local game. Invalid files produce an error instead of being overwritten.
 
-## Tests
+## Structure
 
-`javac -cp build -d build tests/*.java`, then `java -cp build CameraTest` (or another test).
+`Game` owns the simulation. `Menu` handles interaction; `Scores` validates, searches and saves records. These rules stay outside the menu so they can be used without terminal input.
+
+`EnemyShip`, `EnemySub` and `EnemyMine` extend `Enemy`. Polymorphism lets the update loop call their own behaviour through superclass references. `WeaponCarrier` provides the shared attack interface.
+
+`Submarine` uses composition to share rooms, damage, crew and repairs between player and enemy vessels. This avoids separate damage systems. `Projectile` shares movement between torpedoes and depth charges.
+
+`Renderer` draws on the main thread to avoid competing terminal writes. Keyboard input and explosion calculations use worker threads and queues; only the main thread changes game state.
